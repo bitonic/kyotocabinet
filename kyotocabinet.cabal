@@ -1,0 +1,23 @@
+Cabal-Version:          >= 1.6
+Name:                   kyotocabinet
+Version:                0.0.1
+Author:                 Francesco Mazzoli (f@mazzo.li)
+Maintainer:             Francesco Mazzoli (f@mazzo.li)
+Build-Type:             Simple
+License:                BSD3
+Build-Type:             Simple
+Category:               Database
+Synopsis:               High level bindings to Kyoto Cabinet
+Tested-With:            GHC==7.0.3
+Description:
+  High level bindings to Kyoto Cabinet.
+
+source-repository head
+  type:                 git
+  location:             git://github.com/rostayob/kyotocabinet.git
+
+Library
+  Build-Depends:        base >= 4 && <5
+                      , cereal
+  GHC-Options:          -Wall
+  Exposed-Modules:      Database.Kyoto.DB
