@@ -7,10 +7,10 @@ Build-Type:             Simple
 License:                BSD3
 Build-Type:             Simple
 Category:               Database
-Synopsis:               High level bindings to Kyoto Cabinet
+Synopsis:               Mid level bindings to Kyoto Cabinet
 Tested-With:            GHC==7.0.3
 Description:
-  High level bindings to Kyoto Cabinet.
+  Mid level bindings to Kyoto Cabinet, plus some wrappers data type for ease of use.
 
 source-repository head
   type:                 git

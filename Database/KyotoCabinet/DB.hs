@@ -278,7 +278,7 @@ data Options = Compress -- ^ Enable compression of the keys and the values
 instance TuningOption Options where
   keyValue Compress = ("opts", "c")
 
--- | Number of buckets in the hash table
+-- | Number of buckets in the hash table. The default number is about 1 million.
 newtype Buckets = Buckets Int64
 instance TuningOption Buckets where
   keyValue (Buckets s) = ("bnum", show s)
@@ -305,22 +305,22 @@ newtype CipherKey = CipherKey String
 instance TuningOption CipherKey where
   keyValue (CipherKey k) = ("zkey", k)
 
--- | Maximum number of records.
+-- | Maximum number of records. The default there is no limit and no records are expired.
 newtype MaxRecords = MaxRecords Int64
 instance TuningOption MaxRecords where
   keyValue (MaxRecords i) = ("capcount", show i)
 
--- | Maximum size of the database.
+-- | Maximum size of the database. The default there is no limit.
 newtype MaxSize = MaxSize Int64
 instance TuningOption MaxSize where
   keyValue (MaxSize i) = ("capsize", show i)
 
--- | Maximum size of each page in the tree.
+-- | Maximum size of each page in the tree. The default is 8192, double the page size on most systems.
 newtype PageSize = PageSize Int64
 instance TuningOption PageSize where
   keyValue (PageSize i) = ("psize", show i)
 
--- | Comparator used in the tree. 'Lexical' is default.
+-- | Comparator used in the tree. 'Lexical' by default.
 data Comparator = Lexical | Decimal
 instance TuningOption Comparator where
   keyValue o = case o of
@@ -328,7 +328,7 @@ instance TuningOption Comparator where
                  Decimal -> (k, "dec")
     where k = "rcomp"
 
--- | Size of the page cache.
+-- | Size of the page cache. The default is 64MB.
 newtype PageCacheSize = PageCacheSize Int64
 instance TuningOption PageCacheSize where
   keyValue (PageCacheSize i) = ("pccap", show i)
@@ -349,7 +349,7 @@ instance TuningOption MMapSize where
   keyValue (MMapSize i) = ("msiz", show i)
 
 -- | The unit step of the defragmentation (e.g. number of updates necessary to trigger the
---   deframmentation). By default defragmentation is disabled, enable if there are a lot of
+--   deframmentation). The default defragmentation is disabled, enable if there are a lot of
 --   updates.
 newtype DefragInterval = DefragInterval Int64
 instance TuningOption DefragInterval where
