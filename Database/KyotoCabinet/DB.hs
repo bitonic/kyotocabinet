@@ -1,26 +1,11 @@
-{-# Language MultiParamTypeClasses, EmptyDataDecls #-}
+{-# Language MultiParamTypeClasses, EmptyDataDecls, ExistentialQuantification #-}
 module Database.KyotoCabinet.DB
        ( -- * Logging
          LoggingOptions (..)
        , LogFile (..)
        , LogKind (..)
        , defaultLoggingOptions
-         
-         -- * Tuning options
-       , Options (..)
-       , Buckets (..)
-       , Compressor (..)
-       , CipherKey (..)
-       , MaxRecords (..)
-       , MaxSize (..)
-       , PageSize (..)
-       , Comparator (..)
-       , PageCacheSize (..)
-       , AlignmentPow (..)
-       , FreePoolPow (..)
-       , MMapSize (..)
-       , DefragInterval (..)
-         
+
          -- * Classes
          -- ** Volatile classes
        , ProtoHash (..)
@@ -35,6 +20,23 @@ module Database.KyotoCabinet.DB
        , Forest (..)
        , Text (..)
 
+         -- * Tuning options
+       , Options (..)
+       , Buckets (..)
+       , Compressor (..)
+       , CipherKey (..)
+       , MaxRecords (..)
+       , MaxSize (..)
+       , PageSize (..)
+       , Comparator (..)
+       , PageCacheSize (..)
+       , AlignmentPow (..)
+       , FreePoolPow (..)
+       , MMapSize (..)
+       , DefragInterval (..)
+         -- ** Class option
+       , ClassOption (..)
+         
          -- * The main DB type
        , DB
          
@@ -49,9 +51,6 @@ module Database.KyotoCabinet.DB
          
          -- * Closing
        , close
-         
-         -- * Tuning
-       , tune
          
          -- * Setting
        , set
@@ -355,6 +354,8 @@ newtype DefragInterval = DefragInterval Int64
 instance TuningOption DefragInterval where
   keyValue (DefragInterval i) = ("dfunit", show i)
 
+data ClassOption c = forall o. HasOption c o => ClassOption o
+
 -------------------------------------------------------------------------------
 
 class (Class c, TuningOption o) => HasOption c o
@@ -415,24 +416,30 @@ data Mode = Reader [ReadMode] | Writer [WriteMode] [ReadMode]
 data WriteMode = Create | Truncate | AutoTran | AutoSinc
 
 data ReadMode = NoLock | TryLock | NoRepair
-                         
+
+-------------------------------------------------------------------------------
+
 newVolatile :: (Serialize k, Serialize v, Volatile c)
-               => c -> LoggingOptions -> Mode -> IO (DB c k v)
+               => c
+               -> LoggingOptions
+               -> [ClassOption c]
+               -> Mode
+               -> IO (DB c k v)
 newVolatile = undefined
 
 openPersistent :: (Serialize k, Serialize v, Persistent c)
-                  => c -> FilePath -> LoggingOptions -> Mode -> IO (DB c k v)
+                  => c
+                  -> FilePath
+                  -> LoggingOptions
+                  -> [ClassOption c]
+                  -> Mode
+                  -> IO (DB c k v)
 openPersistent = undefined
 
 -------------------------------------------------------------------------------
 
 close :: DB c k v -> IO ()
 close = undefined
-
--------------------------------------------------------------------------------
-
-tune :: HasOption c o => DB c k v -> o -> IO ()
-tune = undefined
 
 -------------------------------------------------------------------------------
 
