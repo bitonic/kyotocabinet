@@ -11,7 +11,15 @@ module Database.KyotoCabinet.Foreign
        , WriteMode (..)
 
          -- * Operations
+         -- ** Traversal
+       , VisitorAction (..)
+       , VisitorFull
+       , VisitorEmpty
+       , kcdbaccept
+
+         -- ** Setters
        , kcdbset
+         -- ** Getters
        , kcdbget
 
          -- * Exceptions
@@ -26,16 +34,20 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Data (Typeable)
 import Data.Int (Int32)
-import Foreign.C.String (CString, newCAString, peekCAString) -- TODO: find out how to handle UTF8 names
+import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.C.Types (CSize)
 import Foreign.Marshal.Alloc (alloca)
-import Foreign.Ptr (Ptr, nullPtr)
-import Foreign.Storable (peek)
+import Foreign.Ptr (Ptr, nullPtr, FunPtr)
+import Foreign.Storable (peek, poke)
 
 #include <kclangc.h>
 
 fi :: (Num b, Integral a) => a -> b
 fi = fromIntegral
+
+boolToInt :: Bool -> Int32
+boolToInt True  = 1
+boolToInt False = 0
 
 -------------------------------------------------------------------------------
 
@@ -78,8 +90,8 @@ kcdbopen :: Ptr KCDB
             -> String -- ^ File name
             -> Mode   -- ^ Open mode
             -> IO ()
-kcdbopen db fn mode = newCAString fn >>= \fnptr -> kcdbopen' db fnptr (modeFlag mode) >>=
-                                                   handleResult db "kcdbopen"
+kcdbopen db fn mode = newCString fn >>= \fnptr -> kcdbopen' db fnptr (modeFlag mode) >>=
+                                                  handleResult db "kcdbopen"
 foreign import ccall "kclangc.h kcdbopen"
   kcdbopen' :: Ptr KCDB -> CString -> Int32 -> IO Int32
 
@@ -90,12 +102,73 @@ foreign import ccall "kclangc.h kcdbclose"
 
 -------------------------------------------------------------------------------
 
+data VisitorAction = NoOperation -- ^ Don't do anything
+                   | Remove      -- ^ Remove the record
+
+type VisitorFull = ByteString       -- ^ Key
+                   -> ByteString    -- ^ Value
+                   -> IO (Either VisitorAction ByteString)
+                   -- ^ If a 'ByteString' is returned, the value is changed.
+
+type VisitorEmpty = ByteString
+                    -> IO (Maybe ByteString)
+                    -- ^ If the 'ByteString' is present, the value will be added.
+
+foreign import ccall unsafe "getKVCISNOP"
+  _KCVISNOP :: IO CString
+
+foreign import ccall unsafe "getKCVISREMOVE"
+  _KCVISREMOVE :: IO CString
+
+type KCVISITFULL = FunPtr (CString -> CSize -> CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
+
+mkVisitorFull :: VisitorFull -> IO KCVISITFULL
+mkVisitorFull visitor =
+  mkKCVISITFULL $ \kptr klen vptr vlen sizeptr _opq ->
+  do k <- BS.packCStringLen (kptr, fi klen)
+     v <- BS.packCStringLen (vptr, fi vlen)
+     res <- visitor k v
+     case res of
+       Left NoOperation -> _KCVISNOP
+       Left Remove      -> _KCVISREMOVE
+       Right newv -> BS.useAsCStringLen newv $ \ (newvptr, len) -> poke sizeptr (fi len) >> return newvptr
+foreign import ccall "wrapper"  
+  mkKCVISITFULL :: (CString -> CSize -> CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
+                   -> IO KCVISITFULL
+
+type KCVISITEMPTY = FunPtr (CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
+
+mkVisitorEmpty :: VisitorEmpty -> IO KCVISITEMPTY
+mkVisitorEmpty visitor =
+  mkKCVISITEMPTY $ \kptr klen sizeptr _opq ->
+  do k <- BS.packCStringLen (kptr, fi klen)
+     res <- visitor k
+     case res of
+       Nothing -> _KCVISNOP
+       Just v  -> BS.useAsCStringLen v $ \ (vptr, vlen) -> poke sizeptr (fi vlen) >> return vptr
+foreign import ccall "wrapper"
+  mkKCVISITEMPTY :: (CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
+                    -> IO KCVISITEMPTY
+
+kcdbaccept :: Ptr KCDB -> ByteString -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
+kcdbaccept db k vf ve w =
+  BS.useAsCStringLen k $ \(kptr, klen) ->
+  do vfptr <- mkVisitorFull vf
+     veptr <- mkVisitorEmpty ve
+     kcdbaccept' db kptr (fi klen) vfptr veptr (boolToInt w) >>= handleResult db "kcdbaccept"
+foreign import ccall "kclangc.h kcdbset"
+  kcdbaccept' :: Ptr KCDB -> CString -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Int32 -> IO Int32
+
+-------------------------------------------------------------------------------
+
 kcdbset :: Ptr KCDB -> ByteString -> ByteString -> IO ()
 kcdbset db k v = BS.useAsCStringLen k $ \(kptr, klen) ->
                  BS.useAsCStringLen v $ \(vptr, vlen) ->
                  kcdbset' db kptr (fi klen) vptr (fi vlen) >>= handleResult db "kcdbset"
 foreign import ccall "kclangc.h kcdbset"
   kcdbset' :: Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32
+
+-------------------------------------------------------------------------------
 
 kcdbget :: Ptr KCDB -> ByteString -> IO (Maybe ByteString)
 kcdbget db k = BS.useAsCStringLen k $ \(kptr, klen) ->
@@ -112,7 +185,7 @@ foreign import ccall "kclangc.h kcdbecode"
   kcdbecode :: Ptr KCDB -> IO Int32
 
 kcdbemsg :: Ptr KCDB -> IO String
-kcdbemsg db = kcdbemsg' db >>= peekCAString
+kcdbemsg db = kcdbemsg' db >>= peekCString
 foreign import ccall "kclangc.h kcdbemsg"
   kcdbemsg' :: Ptr KCDB -> IO CString
 

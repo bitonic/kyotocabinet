@@ -9,6 +9,12 @@ module Database.KyotoCabinet
          
          -- * Closing
        , close
+
+         -- * Visitor
+       , VisitorAction (..)
+       , VisitorFull
+       , VisitorEmpty
+       , accept
          
          -- * Setting
        , set
@@ -473,6 +479,11 @@ openPersistent class' fn log opts mode =
 
 close :: DB c -> IO ()
 close (DB kcdb) = kcdbclose kcdb
+
+-------------------------------------------------------------------------------
+
+accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
+accept (DB kcdb) vf ve w = kcdbaccept kcdb vf ve w
 
 -------------------------------------------------------------------------------
 
