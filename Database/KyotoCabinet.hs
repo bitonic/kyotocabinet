@@ -15,6 +15,7 @@ module Database.KyotoCabinet
        , VisitorFull
        , VisitorEmpty
        , accept
+       , acceptBulk
          
          -- * Setting
        , set
@@ -483,7 +484,10 @@ close (DB kcdb) = kcdbclose kcdb
 -------------------------------------------------------------------------------
 
 accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
-accept (DB kcdb) vf ve w = kcdbaccept kcdb vf ve w
+accept (DB kcdb) k vf ve w = kcdbaccept kcdb k vf ve w
+
+acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
+acceptBulk (DB kcdb) ks vf ve w = kcdbacceptbulk kcdb ks vf ve w
 
 -------------------------------------------------------------------------------
 

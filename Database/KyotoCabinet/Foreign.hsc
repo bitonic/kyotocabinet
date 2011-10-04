@@ -11,11 +11,12 @@ module Database.KyotoCabinet.Foreign
        , WriteMode (..)
 
          -- * Operations
-         -- ** Traversal
+         -- ** Visitor
        , VisitorAction (..)
        , VisitorFull
        , VisitorEmpty
        , kcdbaccept
+       , kcdbacceptbulk
 
          -- ** Setters
        , kcdbset
@@ -34,11 +35,12 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Data (Typeable)
 import Data.Int (Int32)
-import Foreign.C.String (CString, newCString, peekCString)
-import Foreign.C.Types (CSize)
+import Foreign.C.String (CString, withCString, peekCString)
+import Foreign.C.Types (CSize, CInt)
 import Foreign.Marshal.Alloc (alloca)
+import Foreign.Marshal.Array (withArrayLen)
 import Foreign.Ptr (Ptr, nullPtr, FunPtr)
-import Foreign.Storable (peek, poke)
+import Foreign.Storable (Storable (..))
 
 #include <kclangc.h>
 
@@ -90,8 +92,8 @@ kcdbopen :: Ptr KCDB
             -> String -- ^ File name
             -> Mode   -- ^ Open mode
             -> IO ()
-kcdbopen db fn mode = newCString fn >>= \fnptr -> kcdbopen' db fnptr (modeFlag mode) >>=
-                                                  handleResult db "kcdbopen"
+kcdbopen db fn mode = withCString fn $ \fnptr -> kcdbopen' db fnptr (modeFlag mode) >>=
+                                                 handleResult db "kcdbopen"
 foreign import ccall "kclangc.h kcdbopen"
   kcdbopen' :: Ptr KCDB -> CString -> Int32 -> IO Int32
 
@@ -155,9 +157,23 @@ kcdbaccept db k vf ve w =
   BS.useAsCStringLen k $ \(kptr, klen) ->
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
-     kcdbaccept' db kptr (fi klen) vfptr veptr (boolToInt w) >>= handleResult db "kcdbaccept"
+     kcdbaccept' db kptr (fi klen) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbaccept"
 foreign import ccall "kclangc.h kcdbset"
-  kcdbaccept' :: Ptr KCDB -> CString -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Int32 -> IO Int32
+  kcdbaccept' :: Ptr KCDB -> CString -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Ptr () -> Int32 -> IO Int32
+
+kcdbacceptbulk :: Ptr KCDB -> [ByteString] -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
+kcdbacceptbulk db ks vf ve w =
+  go ks [] $ \kcstrs ->
+  withArrayLen kcstrs $ \len kcstrptr ->
+  do vfptr <- mkVisitorFull vf
+     veptr <- mkVisitorEmpty ve
+     kcdbacceptbulk' db kcstrptr (fi len) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbaccept"
+  where
+    go []        kcstrs f = f $ reverse kcstrs
+    go (k : ks') kcstrs f = withKCSTR k $ \kcstr -> go ks' (kcstr : kcstrs) f
+foreign import ccall "kclangc.h kcdbset"
+  kcdbacceptbulk' :: Ptr KCDB -> Ptr KCSTR -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Ptr () -> Int32 -> IO Int32
+
 
 -------------------------------------------------------------------------------
 
@@ -225,3 +241,19 @@ handleResult :: Ptr KCDB -> String -> Int32 -> IO ()
 handleResult db fun status
   | status == 0 = throwIO =<< ((KCException fun) <$> fmap getError (kcdbecode db) <*> kcdbemsg db)
   | otherwise  = return ()
+
+---------------------------------------------------------------------
+
+data KCSTR = KCSTR CString CSize
+
+withKCSTR :: ByteString -> (KCSTR -> IO a) -> IO a
+withKCSTR bs f = BS.useAsCStringLen bs $ \(ptr, len) -> f (KCSTR ptr (fi len))
+  
+instance Storable KCSTR where
+  sizeOf _ = #{size KCSTR}
+  alignment _ = alignment (undefined :: CInt)
+  peek ptr =
+    do arr <- #{peek KCSTR, buf} ptr
+       size <- #{peek KCSTR, size} ptr
+       return $ KCSTR arr size
+  poke _ _ = error "Database.KyotoCabinet.Foreign.KCSTR.poke not implemented"
