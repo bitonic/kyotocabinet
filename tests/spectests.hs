@@ -8,7 +8,7 @@ import Prelude hiding (iterate)
 test1 :: IO ()
 test1 = do
   -- Create the DB
-  db <- openPersistent Hash "/tmp/casket.kch" defaultLoggingOptions [] (Writer [Create] [])
+  db <- openPersistent Tree "/tmp/casket.kch" defaultLoggingOptions [] (Writer [Create] [])
 
   set db "foo" "hop"
   set db "bar" "step"
@@ -24,7 +24,7 @@ test1 = do
 
 test2 :: IO ()
 test2 = do
-  db <- openPersistent Hash "/tmp/casket.kch" defaultLoggingOptions [] (Reader [])
+  db <- openPersistent Tree "/tmp/casket.kch" defaultLoggingOptions [] (Reader [])
 
   let vfull  = \k v -> putStr (show k) >> putStr ":" >> putStrLn (show v) >> return (Left NoOperation)
       vempty = \k   -> putStr (show k) >> putStrLn " is missing" >> return Nothing
