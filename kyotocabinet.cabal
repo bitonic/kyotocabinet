@@ -20,4 +20,5 @@ Library
   Build-Depends:        base >= 4 && <5
                       , cereal
   GHC-Options:          -Wall
-  Exposed-Modules:      Database.KyotoCabinet.DB
+  Exposed-Modules:      Database.KyotoCabinet
+  Extra-Libraries:      kyotocabinet

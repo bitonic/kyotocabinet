@@ -1,5 +1,5 @@
 {-# Language MultiParamTypeClasses, EmptyDataDecls, ExistentialQuantification #-}
-module Database.KyotoCabinet.DB
+module Database.KyotoCabinet
        ( -- * Logging
          LoggingOptions (..)
        , LogFile (..)
@@ -61,7 +61,9 @@ module Database.KyotoCabinet.DB
 
 import Data.Serialize (Serialize)
 import Data.Int (Int64, Int8)
-import Foreign.ForeignPtr (ForeignPtr)
+import Foreign.Ptr (Ptr)
+
+import Database.KyotoCabinet.Foreign
 
 -------------------------------------------------------------------------------
 
@@ -405,9 +407,7 @@ instance HasOption Forest Options
 
 -------------------------------------------------------------------------------
 
-data KCDB
-
-newtype DB c key value = DB (ForeignPtr KCDB)
+newtype DB c key value = DB (Ptr KCDB)
 
 -------------------------------------------------------------------------------
 
