@@ -47,7 +47,7 @@ data ReadMode = NoLock | TryLock | NoRepair
 
 modeFlag :: Mode -> Int32
 modeFlag (Reader ms)    = foldr (.|.) #{const KCOREADER} $ map readFlag ms
-modeFlag (Writer ws rs) = foldr (.|.) (foldr (.|.) #{const KCOREADER} $ map writeFlag ws) $
+modeFlag (Writer ws rs) = foldr (.|.) (foldr (.|.) #{const KCOWRITER} $ map writeFlag ws) $
                           map readFlag rs
 
 readFlag :: ReadMode -> Int32
@@ -122,7 +122,11 @@ data KCException = KCException { excFunction :: String
                                , excError    :: KCError
                                , excMsg      :: String
                                }
-                   deriving (Show, Typeable)
+                   deriving (Typeable)
+
+instance Show KCException where
+  show (KCException fun err msg) = "KyotoCabinet exception, when calling function \"" ++ fun ++ "\". " ++
+                                   "Error: " ++ show err ++ ", " ++ msg ++ "."
 instance Exception KCException
 
 data KCError = Success | NotImplemented | InvalidOperation | NoRepository

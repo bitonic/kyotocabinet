@@ -1,7 +1,32 @@
 {-# Language MultiParamTypeClasses, EmptyDataDecls, ExistentialQuantification #-}
 module Database.KyotoCabinet
-       ( -- * Logging
-         LoggingOptions (..)
+       ( -- * The main DB type
+         DB
+         
+         -- * Creation
+       , newVolatile
+       , openPersistent
+         
+         -- * Closing
+       , close
+         
+         -- * Setting
+       , set
+         
+         -- * Getting
+       , get
+
+         -- * Exceptions
+       , KCException (..)
+       , KCError (..)
+
+         -- * Opening modes
+       , Mode (..)
+       , WriteMode (..)
+       , ReadMode (..)
+
+          -- * Logging
+       , LoggingOptions (..)
        , LogFile (..)
        , LogKind (..)
        , defaultLoggingOptions
@@ -36,31 +61,6 @@ module Database.KyotoCabinet
        , DefragInterval (..)
          -- ** Class option
        , ClassOption (..)
-
-         -- * Exceptions
-       , KCException (..)
-       , KCError (..)
-         
-         -- * The main DB type
-       , DB
-         
-         -- * Opening modes
-       , Mode (..)
-       , WriteMode (..)
-       , ReadMode (..)
-         
-         -- * Creation
-       , newVolatile
-       , openPersistent
-         
-         -- * Closing
-       , close
-         
-         -- * Setting
-       , set
-         
-         -- * Getting
-       , get
        ) where
 
 import Data.ByteString (ByteString)

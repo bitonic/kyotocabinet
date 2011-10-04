@@ -1,7 +1,7 @@
 {-# INCLUDE <kclangc.h> #-}
-{-# LINE 1 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 1 "Foreign.hsc" #-}
 {-# Language ForeignFunctionInterface, EmptyDataDecls, DeriveDataTypeable #-}
-{-# LINE 2 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 2 "Foreign.hsc" #-}
 module Database.KyotoCabinet.Foreign
        ( KCDB
          -- * Opening/creating/closing
@@ -36,7 +36,7 @@ import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.Storable (peek)
 
 
-{-# LINE 36 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 36 "Foreign.hsc" #-}
 
 fi :: (Num b, Integral a) => a -> b
 fi = fromIntegral
@@ -51,28 +51,28 @@ data ReadMode = NoLock | TryLock | NoRepair
 
 modeFlag :: Mode -> Int32
 modeFlag (Reader ms)    = foldr (.|.) 1 $ map readFlag ms
-{-# LINE 50 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 50 "Foreign.hsc" #-}
 modeFlag (Writer ws rs) = foldr (.|.) (foldr (.|.) 1 $ map writeFlag ws) $
-{-# LINE 51 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 51 "Foreign.hsc" #-}
                           map readFlag rs
 
 readFlag :: ReadMode -> Int32
 readFlag NoLock = 64
-{-# LINE 55 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 55 "Foreign.hsc" #-}
 readFlag TryLock = 128
-{-# LINE 56 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 56 "Foreign.hsc" #-}
 readFlag NoRepair = 256
-{-# LINE 57 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 57 "Foreign.hsc" #-}
 
 writeFlag :: WriteMode -> Int32
 writeFlag Create   = 4
-{-# LINE 60 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 60 "Foreign.hsc" #-}
 writeFlag Truncate = 8
-{-# LINE 61 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 61 "Foreign.hsc" #-}
 writeFlag AutoTran = 16
-{-# LINE 62 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 62 "Foreign.hsc" #-}
 writeFlag AutoSync = 32
-{-# LINE 63 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 63 "Foreign.hsc" #-}
 
 -------------------------------------------------------------------------------
 
@@ -135,7 +135,11 @@ data KCException = KCException { excFunction :: String
                                , excError    :: KCError
                                , excMsg      :: String
                                }
-                   deriving (Show, Typeable)
+                   deriving (Typeable)
+
+instance Show KCException where
+  show (KCException fun err msg) = "KyotoCabinet exception, when calling function \"" ++ fun ++ "\". " ++
+                                   "Error: " ++ show err ++ ", " ++ msg ++ "."
 instance Exception KCException
 
 data KCError = Success | NotImplemented | InvalidOperation | NoRepository
@@ -145,27 +149,27 @@ data KCError = Success | NotImplemented | InvalidOperation | NoRepository
 
 getError :: Int32 -> KCError
 getError err | err == 0 = Success
-{-# LINE 135 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 139 "Foreign.hsc" #-}
              | err == 1  = NotImplemented
-{-# LINE 136 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 140 "Foreign.hsc" #-}
              | err == 2 = InvalidOperation
-{-# LINE 137 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 141 "Foreign.hsc" #-}
              | err == 3 = NoRepository
-{-# LINE 138 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 142 "Foreign.hsc" #-}
              | err == 4  = NoPermission
-{-# LINE 139 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 143 "Foreign.hsc" #-}
              | err == 5  = BrokenFile
-{-# LINE 140 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 144 "Foreign.hsc" #-}
              | err == 6  = RecordDuplication
-{-# LINE 141 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 145 "Foreign.hsc" #-}
              | err == 7   = NoRecord
-{-# LINE 142 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 146 "Foreign.hsc" #-}
              | err == 8   = LogicalInconsistency
-{-# LINE 143 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 147 "Foreign.hsc" #-}
              | err == 9  = SystemError
-{-# LINE 144 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 148 "Foreign.hsc" #-}
              | err == 15    = MiscError
-{-# LINE 145 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 149 "Foreign.hsc" #-}
              | otherwise = error $ "Database.KyotoCabinet.Foreign: received unrecognised error n " ++ show err
 
 handleResult :: Ptr KCDB -> String -> Int32 -> IO ()

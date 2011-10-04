@@ -22,4 +22,5 @@ Library
                       , bytestring
   GHC-Options:          -Wall
   Exposed-Modules:      Database.KyotoCabinet
+  Other-Modules:        Database.KyotoCabinet.Foreign
   Extra-Libraries:      kyotocabinet
