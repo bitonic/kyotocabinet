@@ -411,14 +411,6 @@ newtype DB c key value = DB (Ptr KCDB)
 
 -------------------------------------------------------------------------------
 
-data Mode = Reader [ReadMode] | Writer [WriteMode] [ReadMode]
-
-data WriteMode = Create | Truncate | AutoTran | AutoSinc
-
-data ReadMode = NoLock | TryLock | NoRepair
-
--------------------------------------------------------------------------------
-
 newVolatile :: (Serialize k, Serialize v, Volatile c)
                => c
                -> LoggingOptions

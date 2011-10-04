@@ -9,21 +9,14 @@ module Database.KyotoCabinet.Foreign
        , kcdbopen
        , kcdbclose
          -- ** Open modes
-       , OpenMode
-       , _KCOREADER
-       , _KCOWRITER
-       , _KCOCREATE
-       , _KCOTRUNCATE
-       , _KCOAUTOTRAN
-       , _KCOAUTOSYNC
-       , _KCONOLOCK
-       , _KCOTRYLOCK
-       , _KCONOREPAIR
-         
+       , Mode (..)
+       , ReadMode (..)
+       , WriteMode (..)
+
          -- * Operations
        , kcdbset
        , kcdbget
-         
+
          -- * Exceptions
        , KCException (..)
        , KCError (..)
@@ -31,6 +24,7 @@ module Database.KyotoCabinet.Foreign
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception (Exception, throwIO)
+import Data.Bits ((.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Data (Typeable)
@@ -42,36 +36,45 @@ import Foreign.Ptr (Ptr)
 import Foreign.Storable (peek)
 
 
-
-{-# LINE 43 "Database/KyotoCabinet/Foreign.hsc" #-}
+{-# LINE 36 "Database/KyotoCabinet/Foreign.hsc" #-}
 
 fi :: (Num b, Integral a) => a -> b
 fi = fromIntegral
 
--------------------------------------------------------------------------------                     
+-------------------------------------------------------------------------------
 
-type OpenMode = Int32
+data Mode = Reader [ReadMode] | Writer [WriteMode] [ReadMode]
 
-_KCOREADER  :: OpenMode
-_KCOREADER  =  1
-_KCOWRITER  :: OpenMode
-_KCOWRITER  =  2
-_KCOCREATE  :: OpenMode
-_KCOCREATE  =  4
-_KCOTRUNCATE  :: OpenMode
-_KCOTRUNCATE  =  8
-_KCOAUTOTRAN  :: OpenMode
-_KCOAUTOTRAN  =  16
-_KCOAUTOSYNC  :: OpenMode
-_KCOAUTOSYNC  =  32
-_KCONOLOCK  :: OpenMode
-_KCONOLOCK  =  64
-_KCOTRYLOCK  :: OpenMode
-_KCOTRYLOCK  =  128
-_KCONOREPAIR  :: OpenMode
-_KCONOREPAIR  =  256
+data WriteMode = Create | Truncate | AutoTran | AutoSync
 
+data ReadMode = NoLock | TryLock | NoRepair
+
+modeFlag :: Mode -> Int32
+modeFlag (Reader ms)    = foldr (.|.) 1 $ map readFlag ms
+{-# LINE 50 "Database/KyotoCabinet/Foreign.hsc" #-}
+modeFlag (Writer ws rs) = foldr (.|.) (foldr (.|.) 1 $ map writeFlag ws) $
+{-# LINE 51 "Database/KyotoCabinet/Foreign.hsc" #-}
+                          map readFlag rs
+
+readFlag :: ReadMode -> Int32
+readFlag NoLock = 64
+{-# LINE 55 "Database/KyotoCabinet/Foreign.hsc" #-}
+readFlag TryLock = 128
+{-# LINE 56 "Database/KyotoCabinet/Foreign.hsc" #-}
+readFlag NoRepair = 256
+{-# LINE 57 "Database/KyotoCabinet/Foreign.hsc" #-}
+
+writeFlag :: WriteMode -> Int32
+writeFlag Create   = 4
+{-# LINE 60 "Database/KyotoCabinet/Foreign.hsc" #-}
+writeFlag Truncate = 8
+{-# LINE 61 "Database/KyotoCabinet/Foreign.hsc" #-}
+writeFlag AutoTran = 16
 {-# LINE 62 "Database/KyotoCabinet/Foreign.hsc" #-}
+writeFlag AutoSync = 32
+{-# LINE 63 "Database/KyotoCabinet/Foreign.hsc" #-}
+
+-------------------------------------------------------------------------------
 
 data KCDB
 
@@ -79,10 +82,11 @@ foreign import ccall "kclangc.h kcdbnew"
   kcdbnew :: IO (Ptr KCDB)
 
 kcdbopen :: Ptr KCDB
-            -> String  -- ^ File name
-            -> Int32   -- ^ Open mode
+            -> String -- ^ File name
+            -> Mode   -- ^ Open mode
             -> IO ()
-kcdbopen db fn mode = newCAString fn >>= \fnptr -> kcdbopen' db fnptr mode >>= handleResult db "kcdbopen"
+kcdbopen db fn mode = newCAString fn >>= \fnptr -> kcdbopen' db fnptr (modeFlag mode) >>=
+                                                   handleResult db "kcdbopen"
 foreign import ccall "kclangc.h kcdbopen"
   kcdbopen' :: Ptr KCDB -> CString -> Int32 -> IO Int32
 
@@ -135,29 +139,29 @@ data KCError = Success | NotImplemented | InvalidOperation | NoRepository
 
 getError :: Int32 -> KCError
 getError err | err == 0 = Success
-{-# LINE 125 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 1  = NotImplemented
-{-# LINE 126 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 2 = InvalidOperation
-{-# LINE 127 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 3 = NoRepository
-{-# LINE 128 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 4  = NoPermission
 {-# LINE 129 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 5  = BrokenFile
+             | err == 1  = NotImplemented
 {-# LINE 130 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 6  = RecordDuplication
+             | err == 2 = InvalidOperation
 {-# LINE 131 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 7   = NoRecord
+             | err == 3 = NoRepository
 {-# LINE 132 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 8   = LogicalInconsistency
+             | err == 4  = NoPermission
 {-# LINE 133 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 9  = SystemError
+             | err == 5  = BrokenFile
 {-# LINE 134 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 15    = MiscError
+             | err == 6  = RecordDuplication
 {-# LINE 135 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 7   = NoRecord
+{-# LINE 136 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 8   = LogicalInconsistency
+{-# LINE 137 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 9  = SystemError
+{-# LINE 138 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 15    = MiscError
+{-# LINE 139 "Database/KyotoCabinet/Foreign.hsc" #-}
              | otherwise = error $ "Database.KyotoCabinet.Foreign: received unrecognised error n " ++ show err
-                     
+
 
 handleResult :: Ptr KCDB -> String -> Int32 -> IO ()
 handleResult db fun status
