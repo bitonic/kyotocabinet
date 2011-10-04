@@ -16,6 +16,8 @@ module Database.KyotoCabinet
        , VisitorEmpty
        , accept
        , acceptBulk
+       , iterate
+       , parScan
          
          -- * Setting
        , set
@@ -76,7 +78,7 @@ import Data.List (intercalate)
 import Data.Maybe (maybeToList)
 import Foreign.Ptr (Ptr)
 
-import Prelude hiding (log)
+import Prelude hiding (log, iterate)
 
 import Database.KyotoCabinet.Foreign
 
@@ -488,6 +490,12 @@ accept (DB kcdb) k vf ve w = kcdbaccept kcdb k vf ve w
 
 acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
 acceptBulk (DB kcdb) ks vf ve w = kcdbacceptbulk kcdb ks vf ve w
+
+iterate :: DB c -> VisitorFull -> Bool -> IO ()
+iterate (DB kcdb) vs w = kcdbiterate kcdb vs w
+
+parScan :: DB c -> VisitorFull -> Int -> IO ()
+parScan (DB kcdb) vf threads = kcdbscanpara kcdb vf threads
 
 -------------------------------------------------------------------------------
 

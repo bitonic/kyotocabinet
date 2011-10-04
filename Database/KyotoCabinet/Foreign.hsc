@@ -17,6 +17,8 @@ module Database.KyotoCabinet.Foreign
        , VisitorEmpty
        , kcdbaccept
        , kcdbacceptbulk
+       , kcdbiterate
+       , kcdbscanpara
 
          -- ** Setters
        , kcdbset
@@ -158,7 +160,7 @@ kcdbaccept db k vf ve w =
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
      kcdbaccept' db kptr (fi klen) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbaccept"
-foreign import ccall "kclangc.h kcdbset"
+foreign import ccall "kclangc.h kcdbaccept"
   kcdbaccept' :: Ptr KCDB -> CString -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Ptr () -> Int32 -> IO Int32
 
 kcdbacceptbulk :: Ptr KCDB -> [ByteString] -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
@@ -167,13 +169,26 @@ kcdbacceptbulk db ks vf ve w =
   withArrayLen kcstrs $ \len kcstrptr ->
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
-     kcdbacceptbulk' db kcstrptr (fi len) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbaccept"
+     kcdbacceptbulk' db kcstrptr (fi len) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbacceptbulk"
   where
     go []        kcstrs f = f $ reverse kcstrs
     go (k : ks') kcstrs f = withKCSTR k $ \kcstr -> go ks' (kcstr : kcstrs) f
-foreign import ccall "kclangc.h kcdbset"
+foreign import ccall "kclangc.h kcdbacceptbulk" 
   kcdbacceptbulk' :: Ptr KCDB -> Ptr KCSTR -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Ptr () -> Int32 -> IO Int32
 
+kcdbiterate :: Ptr KCDB -> VisitorFull -> Bool -> IO ()
+kcdbiterate db vf w =
+  do vfptr <- mkVisitorFull vf
+     kcdbiterate' db vfptr nullPtr (boolToInt w) >>= handleResult db "kcdbiterate"
+foreign import ccall "kclangc.h kcdbiterate"
+  kcdbiterate' :: Ptr KCDB -> KCVISITFULL -> Ptr () -> Int32 -> IO Int32
+
+kcdbscanpara :: Ptr KCDB -> VisitorFull -> Int -> IO ()
+kcdbscanpara db vf threads =
+  do vfptr <- mkVisitorFull vf
+     kcdbscanpara' db vfptr nullPtr (fi threads) >>= handleResult db "kcdbscanpara"
+foreign import ccall "kclangc.h kcdbscanpara"
+  kcdbscanpara' :: Ptr KCDB -> KCVISITFULL -> Ptr () -> CSize -> IO Int32
 
 -------------------------------------------------------------------------------
 
