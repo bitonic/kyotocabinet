@@ -32,7 +32,7 @@ import Data.Int (Int32)
 import Foreign.C.String (CString, newCAString, peekCAString) -- TODO: find out how to handle UTF8 names
 import Foreign.C.Types (CSize)
 import Foreign.Marshal.Alloc (alloca)
-import Foreign.Ptr (Ptr)
+import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.Storable (peek)
 
 
@@ -78,8 +78,14 @@ writeFlag AutoSync = 32
 
 data KCDB
 
+kcdbnew :: IO (Ptr KCDB)
+kcdbnew =
+  do kcdb <- kcdbnew'
+     if kcdb == nullPtr then
+       error "Database.KyotoCabinet.Foreign.kcdbnew: kcdbnew returned NULL."
+       else return kcdb
 foreign import ccall "kclangc.h kcdbnew"
-  kcdbnew :: IO (Ptr KCDB)
+  kcdbnew' :: IO (Ptr KCDB)
 
 kcdbopen :: Ptr KCDB
             -> String -- ^ File name
@@ -104,12 +110,12 @@ kcdbset db k v = BS.useAsCStringLen k $ \(kptr, klen) ->
 foreign import ccall "kclangc.h kcdbset"
   kcdbset' :: Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32
 
-kcdbget :: Ptr KCDB -> ByteString -> IO ByteString
+kcdbget :: Ptr KCDB -> ByteString -> IO (Maybe ByteString)
 kcdbget db k = BS.useAsCStringLen k $ \(kptr, klen) ->
                alloca $ \vlenptr ->
                do vptr <- kcdbget' db kptr (fi klen) vlenptr
-                  vlen <- peek vlenptr
-                  BS.packCStringLen (vptr, fi vlen)
+                  if vptr == nullPtr then return Nothing
+                    else peek vlenptr >>= \vlen -> fmap Just $ BS.packCStringLen (vptr, fi vlen)
 foreign import ccall "kclangc.h kcdbget"
   kcdbget' :: Ptr KCDB -> CString -> CSize -> Ptr CSize -> IO CString
 
@@ -139,29 +145,28 @@ data KCError = Success | NotImplemented | InvalidOperation | NoRepository
 
 getError :: Int32 -> KCError
 getError err | err == 0 = Success
-{-# LINE 129 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 1  = NotImplemented
-{-# LINE 130 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 2 = InvalidOperation
-{-# LINE 131 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 3 = NoRepository
-{-# LINE 132 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 4  = NoPermission
-{-# LINE 133 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 5  = BrokenFile
-{-# LINE 134 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 6  = RecordDuplication
 {-# LINE 135 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 7   = NoRecord
+             | err == 1  = NotImplemented
 {-# LINE 136 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 8   = LogicalInconsistency
+             | err == 2 = InvalidOperation
 {-# LINE 137 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 9  = SystemError
+             | err == 3 = NoRepository
 {-# LINE 138 "Database/KyotoCabinet/Foreign.hsc" #-}
-             | err == 15    = MiscError
+             | err == 4  = NoPermission
 {-# LINE 139 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 5  = BrokenFile
+{-# LINE 140 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 6  = RecordDuplication
+{-# LINE 141 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 7   = NoRecord
+{-# LINE 142 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 8   = LogicalInconsistency
+{-# LINE 143 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 9  = SystemError
+{-# LINE 144 "Database/KyotoCabinet/Foreign.hsc" #-}
+             | err == 15    = MiscError
+{-# LINE 145 "Database/KyotoCabinet/Foreign.hsc" #-}
              | otherwise = error $ "Database.KyotoCabinet.Foreign: received unrecognised error n " ++ show err
-
 
 handleResult :: Ptr KCDB -> String -> Int32 -> IO ()
 handleResult db fun status

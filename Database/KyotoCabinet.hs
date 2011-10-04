@@ -36,6 +36,10 @@ module Database.KyotoCabinet
        , DefragInterval (..)
          -- ** Class option
        , ClassOption (..)
+
+         -- * Exceptions
+       , KCException (..)
+       , KCError (..)
          
          -- * The main DB type
        , DB
@@ -59,9 +63,13 @@ module Database.KyotoCabinet
        , get
        ) where
 
-import Data.Serialize (Serialize)
+import Data.ByteString (ByteString)
 import Data.Int (Int64, Int8)
+import Data.List (intercalate)
+import Data.Maybe (maybeToList)
 import Foreign.Ptr (Ptr)
+
+import Prelude hiding (log)
 
 import Database.KyotoCabinet.Foreign
 
@@ -69,7 +77,7 @@ import Database.KyotoCabinet.Foreign
 
 data LoggingOptions = LoggingOptions { logFile   :: LogFile
                                        -- ^ The file in which the log messages will be written
-                                     , logKind   :: LogKind
+                                     , logKind   :: [LogKind]
                                      , logPrefix :: String
                                        -- ^ The prefix of each log message
                                      }
@@ -78,9 +86,9 @@ data LogFile = File FilePath | StdOut | StdErr
 
 data LogKind = Debug | Info | Warn | Error
 
--- | Default logging options, outputting to stdout, all messages ('Debug'), and no prefix.
+-- | Default logging options, outputting to stdout, all messages, and no prefix.
 defaultLoggingOptions :: LoggingOptions
-defaultLoggingOptions = LoggingOptions {logFile = StdOut, logKind = Debug, logPrefix = ""}
+defaultLoggingOptions = LoggingOptions {logFile = StdOut, logKind = [Debug, Info, Warn, Error], logPrefix = ""}
 
 -------------------------------------------------------------------------------
 
@@ -407,38 +415,71 @@ instance HasOption Forest Options
 
 -------------------------------------------------------------------------------
 
-newtype DB c key value = DB (Ptr KCDB)
+newtype DB c = DB (Ptr KCDB)
 
 -------------------------------------------------------------------------------
 
-newVolatile :: (Serialize k, Serialize v, Volatile c)
+formatName :: Class c => Maybe FilePath -> c -> LoggingOptions -> [ClassOption c] -> String
+formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ logs
+  where
+    hashify = intercalate "#"
+
+    eq k v = k ++ "=" ++ v
+
+    type' = "type" `eq` className class'
+    
+    optss = map (\(ClassOption o) -> let (k, v) = keyValue o in k `eq` v) opts
+
+    logs = case log of
+             LoggingOptions lfile lks lpx -> [ "log" `eq` (logFileStr lfile)
+                                             , hashify (map (eq "logkinds" . logKindStr) lks)
+                                             , "logpx" `eq` lpx
+                                             ]
+    
+    logFileStr (File fp) = fp
+    logFileStr StdOut    = "-"
+    logFileStr StdErr    = "+"
+
+    logKindStr Debug = "debug"
+    logKindStr Info  = "info"
+    logKindStr Warn  = "warn"
+    logKindStr Error = "error"
+
+
+newVolatile :: Volatile c
                => c
                -> LoggingOptions
                -> [ClassOption c]
                -> Mode
-               -> IO (DB c k v)
-newVolatile = undefined
+               -> IO (DB c)
+newVolatile class' log opts mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName Nothing class' log opts) mode
+     return $ DB kcdb
 
-openPersistent :: (Serialize k, Serialize v, Persistent c)
+openPersistent :: Persistent c
                   => c
                   -> FilePath
                   -> LoggingOptions
                   -> [ClassOption c]
                   -> Mode
-                  -> IO (DB c k v)
-openPersistent = undefined
+                  -> IO (DB c)
+openPersistent class' fn log opts mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName (Just fn) class' log opts) mode
+     return $ DB kcdb
 
 -------------------------------------------------------------------------------
 
-close :: DB c k v -> IO ()
-close = undefined
+close :: DB c -> IO ()
+close (DB kcdb) = kcdbclose kcdb
 
 -------------------------------------------------------------------------------
 
-set :: (Serialize k, Serialize v) => DB c k v -> k -> v -> IO ()
-set = undefined
+set :: DB c -> ByteString -> ByteString -> IO ()
+set (DB kcdb) k v = kcdbset kcdb k v
 
 -------------------------------------------------------------------------------
 
-get :: (Serialize k, Serialize v) => DB c k v -> k -> IO (Maybe v)
-get = undefined
+get :: DB c -> ByteString -> IO (Maybe ByteString)
+get (DB kcdb) k = kcdbget kcdb k
