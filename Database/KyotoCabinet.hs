@@ -14,6 +14,7 @@ module Database.KyotoCabinet
        , VisitorAction (..)
        , VisitorFull
        , VisitorEmpty
+       , Writable
        , accept
        , acceptBulk
        , iterate
@@ -485,13 +486,16 @@ close (DB kcdb) = kcdbclose kcdb
 
 -------------------------------------------------------------------------------
 
-accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
+type Writable = Bool
+
+-- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
+accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
 accept (DB kcdb) k vf ve w = kcdbaccept kcdb k vf ve w
 
-acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
+acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
 acceptBulk (DB kcdb) ks vf ve w = kcdbacceptbulk kcdb ks vf ve w
 
-iterate :: DB c -> VisitorFull -> Bool -> IO ()
+iterate :: DB c -> VisitorFull -> Writable -> IO ()
 iterate (DB kcdb) vs w = kcdbiterate kcdb vs w
 
 parScan :: DB c -> VisitorFull -> Int -> IO ()

@@ -1,6 +1,6 @@
 Cabal-Version:          >= 1.6
 Name:                   kyotocabinet
-Version:                0.0.1
+Version:                0.1
 Author:                 Francesco Mazzoli (f@mazzo.li)
 Maintainer:             Francesco Mazzoli (f@mazzo.li)
 Build-Type:             Simple
@@ -24,3 +24,6 @@ Library
   Exposed-Modules:      Database.KyotoCabinet
   Other-Modules:        Database.KyotoCabinet.Foreign
   Extra-Libraries:      kyotocabinet
+  Include-Dirs:         cbits
+  Includes:             cbits/utils.h
+  C-Sources:            cbits/utils.c

@@ -118,10 +118,10 @@ type VisitorEmpty = ByteString
                     -> IO (Maybe ByteString)
                     -- ^ If the 'ByteString' is present, the value will be added.
 
-foreign import ccall unsafe "getKVCISNOP"
+foreign import ccall unsafe "utils.h getKCVISNOP"
   _KCVISNOP :: IO CString
 
-foreign import ccall unsafe "getKCVISREMOVE"
+foreign import ccall unsafe "utils.h getKCVISREMOVE"
   _KCVISREMOVE :: IO CString
 
 type KCVISITFULL = FunPtr (CString -> CSize -> CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
