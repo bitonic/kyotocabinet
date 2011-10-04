@@ -1,16 +1,13 @@
 {-# Language MultiParamTypeClasses, EmptyDataDecls, ExistentialQuantification #-}
 module Database.KyotoCabinet
-       ( -- * The main DB type
+       ( -- * Operations
          DB
-         
-         -- * Creation
+         -- ** Creation
        , newVolatile
        , openPersistent
-         
-         -- * Closing
+         -- ** Closing
        , close
-
-         -- * Visitor
+         -- ** Visitor
        , VisitorAction (..)
        , VisitorFull
        , VisitorEmpty
@@ -19,21 +16,25 @@ module Database.KyotoCabinet
        , acceptBulk
        , iterate
        , parScan
-         
-         -- * Setting
+         -- ** Setting
        , set
-         
-         -- * Getting
+       , add
+       , replace
+         -- ** Modifying
+       , append
+         -- ** Getting
        , get
-
-         -- * Exceptions
-       , KCException (..)
-       , KCError (..)
+         -- ** Removing
+       , remove
 
          -- * Opening modes
        , Mode (..)
        , WriteMode (..)
        , ReadMode (..)
+
+         -- * Exceptions
+       , KCException (..)
+       , KCError (..)
 
           -- * Logging
        , LoggingOptions (..)
@@ -374,7 +375,6 @@ newtype DefragInterval = DefragInterval Int64
 instance TuningOption DefragInterval where
   keyValue (DefragInterval i) = ("dfunit", show i)
 
-data ClassOption c = forall o. HasOption c o => ClassOption o
 
 -------------------------------------------------------------------------------
 
@@ -455,6 +455,9 @@ formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ 
     logKindStr Warn  = "warn"
     logKindStr Error = "error"
 
+-- | A general option of a class, only useful to build the options list for 'newVolatile' and
+--   'openPersistent'.
+data ClassOption c = forall o. HasOption c o => ClassOption o
 
 newVolatile :: Volatile c
                => c
@@ -490,23 +493,39 @@ type Writable = Bool
 
 -- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
 accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
-accept (DB kcdb) k vf ve w = kcdbaccept kcdb k vf ve w
+accept (DB kcdb) = kcdbaccept kcdb
 
 acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
-acceptBulk (DB kcdb) ks vf ve w = kcdbacceptbulk kcdb ks vf ve w
+acceptBulk (DB kcdb) = kcdbacceptbulk kcdb
 
 iterate :: DB c -> VisitorFull -> Writable -> IO ()
-iterate (DB kcdb) vs w = kcdbiterate kcdb vs w
+iterate (DB kcdb) = kcdbiterate kcdb
 
 parScan :: DB c -> VisitorFull -> Int -> IO ()
-parScan (DB kcdb) vf threads = kcdbscanpara kcdb vf threads
+parScan (DB kcdb) = kcdbscanpara kcdb 
 
 -------------------------------------------------------------------------------
 
 set :: DB c -> ByteString -> ByteString -> IO ()
-set (DB kcdb) k v = kcdbset kcdb k v
+set (DB kcdb) = kcdbset kcdb
+
+add :: DB c -> ByteString -> ByteString -> IO ()
+add (DB kcdb) = kcdbadd kcdb
+
+replace :: DB c -> ByteString -> ByteString -> IO ()
+replace (DB kcdb) = kcdbreplace kcdb
+
+-------------------------------------------------------------------------------
+
+append :: DB c -> ByteString -> ByteString -> IO ()
+append (DB kcdb) = kcdbappend kcdb
 
 -------------------------------------------------------------------------------
 
 get :: DB c -> ByteString -> IO (Maybe ByteString)
 get (DB kcdb) k = kcdbget kcdb k
+
+-------------------------------------------------------------------------------
+
+remove :: DB c -> ByteString -> IO ()
+remove (DB kcdb) = kcdbremove kcdb

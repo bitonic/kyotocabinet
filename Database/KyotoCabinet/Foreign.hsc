@@ -19,11 +19,16 @@ module Database.KyotoCabinet.Foreign
        , kcdbacceptbulk
        , kcdbiterate
        , kcdbscanpara
-
-         -- ** Setters
+         -- ** Setting
        , kcdbset
-         -- ** Getters
+       , kcdbadd
+       , kcdbreplace
+         -- ** Modifying
+       , kcdbappend
+         -- ** Getting
        , kcdbget
+         -- ** Removing
+       , kcdbremove
 
          -- * Exceptions
        , KCException (..)
@@ -95,12 +100,12 @@ kcdbopen :: Ptr KCDB
             -> Mode   -- ^ Open mode
             -> IO ()
 kcdbopen db fn mode = withCString fn $ \fnptr -> kcdbopen' db fnptr (modeFlag mode) >>=
-                                                 handleResult db "kcdbopen"
+                                                 handleBoolResult db "kcdbopen"
 foreign import ccall "kclangc.h kcdbopen"
   kcdbopen' :: Ptr KCDB -> CString -> Int32 -> IO Int32
 
 kcdbclose :: Ptr KCDB -> IO ()
-kcdbclose db = kcdbclose' db >>= handleResult db "kcdbclose"
+kcdbclose db = kcdbclose' db >>= handleBoolResult db "kcdbclose"
 foreign import ccall "kclangc.h kcdbclose"
   kcdbclose' :: Ptr KCDB -> IO Int32
 
@@ -118,10 +123,10 @@ type VisitorEmpty = ByteString
                     -> IO (Maybe ByteString)
                     -- ^ If the 'ByteString' is present, the value will be added.
 
-foreign import ccall unsafe "utils.h getKCVISNOP"
+foreign import ccall unsafe "utils.h _KCVISNOP"
   _KCVISNOP :: IO CString
 
-foreign import ccall unsafe "utils.h getKCVISREMOVE"
+foreign import ccall unsafe "utils.h _KCVISREMOVE"
   _KCVISREMOVE :: IO CString
 
 type KCVISITFULL = FunPtr (CString -> CSize -> CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
@@ -159,7 +164,7 @@ kcdbaccept db k vf ve w =
   BS.useAsCStringLen k $ \(kptr, klen) ->
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
-     kcdbaccept' db kptr (fi klen) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbaccept"
+     kcdbaccept' db kptr (fi klen) vfptr veptr nullPtr (boolToInt w) >>= handleBoolResult db "kcdbaccept"
 foreign import ccall "kclangc.h kcdbaccept"
   kcdbaccept' :: Ptr KCDB -> CString -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Ptr () -> Int32 -> IO Int32
 
@@ -169,7 +174,7 @@ kcdbacceptbulk db ks vf ve w =
   withArrayLen kcstrs $ \len kcstrptr ->
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
-     kcdbacceptbulk' db kcstrptr (fi len) vfptr veptr nullPtr (boolToInt w) >>= handleResult db "kcdbacceptbulk"
+     kcdbacceptbulk' db kcstrptr (fi len) vfptr veptr nullPtr (boolToInt w) >>= handleBoolResult db "kcdbacceptbulk"
   where
     go []        kcstrs f = f $ reverse kcstrs
     go (k : ks') kcstrs f = withKCSTR k $ \kcstr -> go ks' (kcstr : kcstrs) f
@@ -179,25 +184,53 @@ foreign import ccall "kclangc.h kcdbacceptbulk"
 kcdbiterate :: Ptr KCDB -> VisitorFull -> Bool -> IO ()
 kcdbiterate db vf w =
   do vfptr <- mkVisitorFull vf
-     kcdbiterate' db vfptr nullPtr (boolToInt w) >>= handleResult db "kcdbiterate"
+     kcdbiterate' db vfptr nullPtr (boolToInt w) >>= handleBoolResult db "kcdbiterate"
 foreign import ccall "kclangc.h kcdbiterate"
   kcdbiterate' :: Ptr KCDB -> KCVISITFULL -> Ptr () -> Int32 -> IO Int32
 
 kcdbscanpara :: Ptr KCDB -> VisitorFull -> Int -> IO ()
 kcdbscanpara db vf threads =
   do vfptr <- mkVisitorFull vf
-     kcdbscanpara' db vfptr nullPtr (fi threads) >>= handleResult db "kcdbscanpara"
+     kcdbscanpara' db vfptr nullPtr (fi threads) >>= handleBoolResult db "kcdbscanpara"
 foreign import ccall "kclangc.h kcdbscanpara"
   kcdbscanpara' :: Ptr KCDB -> KCVISITFULL -> Ptr () -> CSize -> IO Int32
 
 -------------------------------------------------------------------------------
 
+keyValFun :: (Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32) -> String
+             -> (Ptr KCDB -> ByteString -> ByteString -> IO ())
+keyValFun f fn db k v = BS.useAsCStringLen k $ \(kptr, klen) ->
+                        BS.useAsCStringLen v $ \(vptr, vlen) ->
+                        f db kptr (fi klen) vptr (fi vlen) >>= handleBoolResult db fn
+
+keyFun :: (Ptr KCDB -> CString -> CSize -> IO Int32) -> String
+          -> (Ptr KCDB -> ByteString -> IO ())
+keyFun f fn db k = BS.useAsCStringLen k $ \(kptr, klen) ->
+                   f db kptr (fi klen) >>= handleBoolResult db fn
+
+-------------------------------------------------------------------------------
+
 kcdbset :: Ptr KCDB -> ByteString -> ByteString -> IO ()
-kcdbset db k v = BS.useAsCStringLen k $ \(kptr, klen) ->
-                 BS.useAsCStringLen v $ \(vptr, vlen) ->
-                 kcdbset' db kptr (fi klen) vptr (fi vlen) >>= handleResult db "kcdbset"
+kcdbset = keyValFun kcdbset' "kcdbset"
 foreign import ccall "kclangc.h kcdbset"
   kcdbset' :: Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32
+
+kcdbadd :: Ptr KCDB -> ByteString -> ByteString -> IO ()
+kcdbadd = keyValFun kcdbadd' "kcdbadd"
+foreign import ccall "kclangc.h kcdbadd"
+  kcdbadd' :: Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32
+
+kcdbreplace :: Ptr KCDB -> ByteString -> ByteString -> IO ()
+kcdbreplace = keyValFun kcdbreplace' "kcdbreplace"
+foreign import ccall "kclangc.h kcdbreplace"
+  kcdbreplace' :: Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32
+
+-------------------------------------------------------------------------------
+
+kcdbappend :: Ptr KCDB -> ByteString -> ByteString -> IO ()
+kcdbappend = keyValFun kcdbappend' "kcdbappend"
+foreign import ccall "kclangc.h kcdbappend"
+  kcdbappend' :: Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32
 
 -------------------------------------------------------------------------------
 
@@ -209,6 +242,13 @@ kcdbget db k = BS.useAsCStringLen k $ \(kptr, klen) ->
                     else peek vlenptr >>= \vlen -> fmap Just $ BS.packCStringLen (vptr, fi vlen)
 foreign import ccall "kclangc.h kcdbget"
   kcdbget' :: Ptr KCDB -> CString -> CSize -> Ptr CSize -> IO CString
+
+-------------------------------------------------------------------------------
+
+kcdbremove :: Ptr KCDB -> ByteString -> IO ()
+kcdbremove = keyFun kcdbremove' "kcdbremove"
+foreign import ccall "kclangc.h kcdbremove"
+  kcdbremove' :: Ptr KCDB -> CString -> CSize -> IO Int32
 
 -------------------------------------------------------------------------------
 
@@ -252,10 +292,13 @@ getError err | err == #{const KCESUCCESS} = Success
              | err == #{const KCEMISC}    = MiscError
              | otherwise = error $ "Database.KyotoCabinet.Foreign: received unrecognised error n " ++ show err
 
-handleResult :: Ptr KCDB -> String -> Int32 -> IO ()
-handleResult db fun status
-  | status == 0 = throwIO =<< ((KCException fun) <$> fmap getError (kcdbecode db) <*> kcdbemsg db)
-  | otherwise  = return ()
+throwKCException :: Ptr KCDB -> String -> IO ()
+throwKCException db fun =
+  throwIO =<< ((KCException fun) <$> fmap getError (kcdbecode db) <*> kcdbemsg db)
+
+handleBoolResult :: Ptr KCDB -> String -> Int32 -> IO ()
+handleBoolResult db fun status | status == 0 = throwKCException db fun
+                               | otherwise  = return ()
 
 ---------------------------------------------------------------------
 
@@ -272,3 +315,5 @@ instance Storable KCSTR where
        size <- #{peek KCSTR, size} ptr
        return $ KCSTR arr size
   poke _ _ = error "Database.KyotoCabinet.Foreign.KCSTR.poke not implemented"
+
+---------------------------------------------------------------------
