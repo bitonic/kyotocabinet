@@ -321,7 +321,10 @@ foreign import ccall "kclangc.h kcdbcopy"
 
 -- int32_t kcdbendtran (KCDB *db, int32_t commit)
 
--- int32_t kcdbclear (KCDB *db)
+kcdbclear :: Ptr KCDB -> IO ()
+kcdbclear db = kcdbclear' db >>= handleBoolResult db "kcdbclear"
+foreign import ccall "kclangc.h kcdbclear"
+  kcdbclear' :: Ptr KCDB -> IO Int32
 
 kcdbdumpsnap :: Ptr KCDB -> String -> IO ()
 kcdbdumpsnap db fn = withCString fn $ \cstr -> kcdbdumpsnap' db cstr >>= handleBoolResult db "kcdbdumpsnap"
@@ -370,6 +373,7 @@ kcdbmerge db dbs mode = withArrayLen dbs $ \len dbptr ->
                         kcdbmerge' db dbptr (fi len) (getMergeMode mode) >>= handleBoolResult db "kcdbmerge"
 foreign import ccall "kclangc.h kcdbmerge"
   kcdbmerge' :: Ptr KCDB -> Ptr (Ptr KCDB) -> CSize -> Int32 -> IO Int32
+
 
 -------------------------------------------------------------------------------
 

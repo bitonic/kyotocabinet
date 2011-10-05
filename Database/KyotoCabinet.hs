@@ -1,7 +1,21 @@
-{-# Language MultiParamTypeClasses #-}
+{-# Language MultiParamTypeClasses, ExistentialQuantification #-}
 module Database.KyotoCabinet
-       ( -- * Operations
+       ( -- * DB Classes
          DB
+         -- ** Volatile classes
+       , ProtoHash (..)
+       , ProtoTree (..)
+       , Stash (..)
+       , CacheHash (..)
+       , CacheTree (..)
+         -- ** Persistent classes
+       , Hash (..)
+       , Tree (..)
+       , Dir (..)
+       , Forest (..)
+       , Text (..)
+
+         -- * Operations
          -- ** Creation
        , newVolatile
        , openPersistent
@@ -30,6 +44,7 @@ module Database.KyotoCabinet
        , remove
        , removeBulk
        , seize
+       , clear
          -- ** Exporting/importing
        , copy
        , dump
@@ -39,6 +54,10 @@ module Database.KyotoCabinet
        , size
        , path
        , status
+         -- ** Merging
+       , GenericDB (..)
+       , MergeMode (..)
+       , merge
          
          -- * Opening modes
        , Mode (..)
@@ -54,20 +73,6 @@ module Database.KyotoCabinet
        , LogFile (..)
        , LogKind (..)
        , defaultLoggingOptions
-
-         -- * Classes
-         -- ** Volatile classes
-       , ProtoHash (..)
-       , ProtoTree (..)
-       , Stash (..)
-       , CacheHash (..)
-       , CacheTree (..)
-         -- ** Persistent classes
-       , Hash (..)
-       , Tree (..)
-       , Dir (..)
-       , Forest (..)
-       , Text (..)
 
          -- * Tuning options
        , TuningOption (..)
@@ -142,7 +147,7 @@ openPersistent class' fn log opts mode =
 -------------------------------------------------------------------------------
 
 close :: DB c -> IO ()
-close (DB kcdb) = kcdbclose kcdb
+close (DB kcdb) = kcdbclose kcdb >> kcdbdel kcdb
 
 -------------------------------------------------------------------------------
 
@@ -197,6 +202,9 @@ removeBulk (DB kcdb) = kcdbremovebulk kcdb
 seize :: DB c -> ByteString -> IO (Maybe ByteString)
 seize (DB kcdb) = kcdbseize kcdb
 
+clear :: DB c -> IO ()
+clear (DB kcdb) = kcdbclear kcdb
+
 -------------------------------------------------------------------------------
 
 copy :: DB c -> String -> IO ()
@@ -221,6 +229,13 @@ path (DB kcdb) = kcdbpath kcdb
 
 status :: DB c -> IO String
 status (DB kcdb) = kcdbstatus kcdb
+
+-------------------------------------------------------------------------------
+
+data GenericDB = forall c. Class c => GenericDB (DB c)
+
+merge :: DB c1 -> [GenericDB] -> MergeMode -> IO ()
+merge (DB kcdb) dbs = kcdbmerge kcdb (map (\(GenericDB (DB kcdb')) -> kcdb') dbs)
 
 -------------------------------------------------------------------------------
 
