@@ -365,8 +365,6 @@ foreign import ccall "kclangc.h kcdbstatus"
 
 -- int64_t kcdbmatchregex (KCDB *db, const char *regex, char **strary, size_t max)
 
--- int32_t kcdbmerge (KCDB *db, KCDB **srcary, size_t srcnum, uint32_t mode)
-
 kcdbmerge :: Ptr KCDB -> [Ptr KCDB] -> MergeMode -> IO ()
 kcdbmerge db dbs mode = withArrayLen dbs $ \len dbptr ->
                         kcdbmerge' db dbptr (fi len) (getMergeMode mode) >>= handleBoolResult db "kcdbmerge"
