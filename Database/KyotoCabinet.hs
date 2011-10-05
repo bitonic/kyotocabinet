@@ -1,4 +1,4 @@
-{-# Language MultiParamTypeClasses, EmptyDataDecls, ExistentialQuantification #-}
+{-# Language MultiParamTypeClasses, ExistentialQuantification #-}
 module Database.KyotoCabinet
        ( -- * Operations
          DB
@@ -83,6 +83,112 @@ import Foreign.Ptr (Ptr)
 import Prelude hiding (log, iterate)
 
 import Database.KyotoCabinet.Foreign
+
+
+newtype DB c = DB (Ptr KCDB)
+
+-------------------------------------------------------------------------------
+
+formatName :: Class c => Maybe FilePath -> c -> LoggingOptions -> [ClassOption c] -> String
+formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ logs
+  where
+    hashify = intercalate "#"
+
+    eq k v = k ++ "=" ++ v
+
+    type' = "type" `eq` className class'
+    
+    optss = map (\(ClassOption o) -> let (k, v) = keyValue o in k `eq` v) opts
+
+    logs = case log of
+             LoggingOptions lfile lks lpx -> [ "log" `eq` (logFileStr lfile)
+                                             , hashify (map (eq "logkinds" . logKindStr) lks)
+                                             , "logpx" `eq` lpx
+                                             ]
+    
+    logFileStr (File fp) = fp
+    logFileStr StdOut    = "-"
+    logFileStr StdErr    = "+"
+
+    logKindStr Debug = "debug"
+    logKindStr Info  = "info"
+    logKindStr Warn  = "warn"
+    logKindStr Error = "error"
+
+-- | A general option of a class, only useful to build the options list for 'newVolatile' and
+--   'openPersistent'.
+data ClassOption c = forall o. HasOption c o => ClassOption o
+
+newVolatile :: Volatile c
+               => c
+               -> LoggingOptions
+               -> [ClassOption c]
+               -> Mode
+               -> IO (DB c)
+newVolatile class' log opts mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName Nothing class' log opts) mode
+     return $ DB kcdb
+
+openPersistent :: Persistent c
+                  => c
+                  -> FilePath
+                  -> LoggingOptions
+                  -> [ClassOption c]
+                  -> Mode
+                  -> IO (DB c)
+openPersistent class' fn log opts mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName (Just fn) class' log opts) mode
+     return $ DB kcdb
+
+-------------------------------------------------------------------------------
+
+close :: DB c -> IO ()
+close (DB kcdb) = kcdbclose kcdb
+
+-------------------------------------------------------------------------------
+
+type Writable = Bool
+
+-- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
+accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
+accept (DB kcdb) = kcdbaccept kcdb
+
+acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
+acceptBulk (DB kcdb) = kcdbacceptbulk kcdb
+
+iterate :: DB c -> VisitorFull -> Writable -> IO ()
+iterate (DB kcdb) = kcdbiterate kcdb
+
+parScan :: DB c -> VisitorFull -> Int -> IO ()
+parScan (DB kcdb) = kcdbscanpara kcdb 
+
+-------------------------------------------------------------------------------
+
+set :: DB c -> ByteString -> ByteString -> IO ()
+set (DB kcdb) = kcdbset kcdb
+
+add :: DB c -> ByteString -> ByteString -> IO ()
+add (DB kcdb) = kcdbadd kcdb
+
+replace :: DB c -> ByteString -> ByteString -> IO ()
+replace (DB kcdb) = kcdbreplace kcdb
+
+-------------------------------------------------------------------------------
+
+append :: DB c -> ByteString -> ByteString -> IO ()
+append (DB kcdb) = kcdbappend kcdb
+
+-------------------------------------------------------------------------------
+
+get :: DB c -> ByteString -> IO (Maybe ByteString)
+get (DB kcdb) k = kcdbget kcdb k
+
+-------------------------------------------------------------------------------
+
+remove :: DB c -> ByteString -> IO ()
+remove (DB kcdb) = kcdbremove kcdb
 
 -------------------------------------------------------------------------------
 
@@ -344,8 +450,8 @@ instance TuningOption PageSize where
 data Comparator = Lexical | Decimal
 instance TuningOption Comparator where
   keyValue o = case o of
-                 Lexical -> (k, "lex")
-                 Decimal -> (k, "dec")
+                 Lexical -> ("lex", k)
+                 Decimal -> ("dec", k)
     where k = "rcomp"
 
 -- | Size of the page cache. The default is 64MB.
@@ -374,7 +480,6 @@ instance TuningOption MMapSize where
 newtype DefragInterval = DefragInterval Int64
 instance TuningOption DefragInterval where
   keyValue (DefragInterval i) = ("dfunit", show i)
-
 
 -------------------------------------------------------------------------------
 
@@ -423,109 +528,3 @@ instance HasOption Dir Options
 
 instance HasOption Forest Options
 
--------------------------------------------------------------------------------
-
-newtype DB c = DB (Ptr KCDB)
-
--------------------------------------------------------------------------------
-
-formatName :: Class c => Maybe FilePath -> c -> LoggingOptions -> [ClassOption c] -> String
-formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ logs
-  where
-    hashify = intercalate "#"
-
-    eq k v = k ++ "=" ++ v
-
-    type' = "type" `eq` className class'
-    
-    optss = map (\(ClassOption o) -> let (k, v) = keyValue o in k `eq` v) opts
-
-    logs = case log of
-             LoggingOptions lfile lks lpx -> [ "log" `eq` (logFileStr lfile)
-                                             , hashify (map (eq "logkinds" . logKindStr) lks)
-                                             , "logpx" `eq` lpx
-                                             ]
-    
-    logFileStr (File fp) = fp
-    logFileStr StdOut    = "-"
-    logFileStr StdErr    = "+"
-
-    logKindStr Debug = "debug"
-    logKindStr Info  = "info"
-    logKindStr Warn  = "warn"
-    logKindStr Error = "error"
-
--- | A general option of a class, only useful to build the options list for 'newVolatile' and
---   'openPersistent'.
-data ClassOption c = forall o. HasOption c o => ClassOption o
-
-newVolatile :: Volatile c
-               => c
-               -> LoggingOptions
-               -> [ClassOption c]
-               -> Mode
-               -> IO (DB c)
-newVolatile class' log opts mode =
-  do kcdb <- kcdbnew
-     kcdbopen kcdb (formatName Nothing class' log opts) mode
-     return $ DB kcdb
-
-openPersistent :: Persistent c
-                  => c
-                  -> FilePath
-                  -> LoggingOptions
-                  -> [ClassOption c]
-                  -> Mode
-                  -> IO (DB c)
-openPersistent class' fn log opts mode =
-  do kcdb <- kcdbnew
-     kcdbopen kcdb (formatName (Just fn) class' log opts) mode
-     return $ DB kcdb
-
--------------------------------------------------------------------------------
-
-close :: DB c -> IO ()
-close (DB kcdb) = kcdbclose kcdb
-
--------------------------------------------------------------------------------
-
-type Writable = Bool
-
--- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
-accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
-accept (DB kcdb) = kcdbaccept kcdb
-
-acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
-acceptBulk (DB kcdb) = kcdbacceptbulk kcdb
-
-iterate :: DB c -> VisitorFull -> Writable -> IO ()
-iterate (DB kcdb) = kcdbiterate kcdb
-
-parScan :: DB c -> VisitorFull -> Int -> IO ()
-parScan (DB kcdb) = kcdbscanpara kcdb 
-
--------------------------------------------------------------------------------
-
-set :: DB c -> ByteString -> ByteString -> IO ()
-set (DB kcdb) = kcdbset kcdb
-
-add :: DB c -> ByteString -> ByteString -> IO ()
-add (DB kcdb) = kcdbadd kcdb
-
-replace :: DB c -> ByteString -> ByteString -> IO ()
-replace (DB kcdb) = kcdbreplace kcdb
-
--------------------------------------------------------------------------------
-
-append :: DB c -> ByteString -> ByteString -> IO ()
-append (DB kcdb) = kcdbappend kcdb
-
--------------------------------------------------------------------------------
-
-get :: DB c -> ByteString -> IO (Maybe ByteString)
-get (DB kcdb) k = kcdbget kcdb k
-
--------------------------------------------------------------------------------
-
-remove :: DB c -> ByteString -> IO ()
-remove (DB kcdb) = kcdbremove kcdb
