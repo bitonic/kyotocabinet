@@ -1,17 +1,18 @@
 {-# Language ForeignFunctionInterface, EmptyDataDecls, DeriveDataTypeable #-}
 module Database.KyotoCabinet.Foreign where
 
+import Control.Arrow (second)
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception (Exception, throwIO)
 import Data.Bits ((.|.))
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Unsafe as BS
 import Data.Data (Typeable)
 import Data.Int (Int32, Int64)
 import Foreign.C.String (CString, withCString, peekCString)
 import Foreign.C.Types (CSize, CInt)
 import Foreign.Marshal.Alloc (alloca)
-import Foreign.Marshal.Array (withArrayLen)
+import Foreign.Marshal.Array (withArrayLen, peekArray, allocaArray)
 import Foreign.Ptr (Ptr, nullPtr, FunPtr)
 import Foreign.Storable (Storable (..))
 
@@ -49,7 +50,7 @@ writeFlag AutoTran = #{const KCOAUTOTRAN}
 writeFlag AutoSync = #{const KCOAUTOSYNC}
 
 
-data KCSTR = KCSTR CString CSize
+newtype KCSTR = KCSTR {unKCSTR :: (CString, CSize)}
 
 instance Storable KCSTR where
   sizeOf _ = #{size KCSTR}
@@ -57,11 +58,11 @@ instance Storable KCSTR where
   peek ptr =
     do arr <- #{peek KCSTR, buf} ptr
        size <- #{peek KCSTR, size} ptr
-       return $ KCSTR arr size
+       return $ KCSTR (arr, size)
   poke _ _ = error "Database.KyotoCabinet.Foreign.KCSTR.poke not implemented"
 
 withKCSTR :: ByteString -> (KCSTR -> IO a) -> IO a
-withKCSTR bs f = BS.useAsCStringLen bs $ \(ptr, len) -> f (KCSTR ptr (fi len))
+withKCSTR bs f = BS.unsafeUseAsCStringLen bs $ \(ptr, len) -> f (KCSTR (ptr, (fi len)))
 
 withKCSTRArray :: [ByteString] -> (CSize -> Ptr KCSTR -> IO a) -> IO a
 withKCSTRArray ks f = go ks [] $ \kcstrs -> withArrayLen kcstrs (f . fi)
@@ -71,24 +72,19 @@ withKCSTRArray ks f = go ks [] $ \kcstrs -> withArrayLen kcstrs (f . fi)
 
 ---------------------------------------------------------------------
 
-data KCREC = KCREC KCSTR KCSTR
+newtype KCREC = KCREC {unKCREC :: (ByteString, ByteString)}
 
 instance Storable KCREC where
   sizeOf _ = #{size KCREC}
   alignment _ = alignment (undefined :: CInt)
   peek ptr =
-    do k <- #{peek KCREC, key} ptr
-       v <- #{peek KCREC, value} ptr
-       return $ KCREC k v
+    do k <- #{peek KCREC, key} ptr >>= BS.unsafePackCStringLen . second fi . unKCSTR
+       v <- #{peek KCREC, value} ptr >>= BS.unsafePackCStringLen . second fi . unKCSTR
+       return $ KCREC (k, v)
   poke _ _ = error "Database.KyotoCabinet.Foreign.KCREC.poke not implemented"
 
 withKCRECArray :: [(ByteString, ByteString)] -> (CSize -> Ptr KCREC -> IO a) -> IO a
-withKCRECArray kvs f = go kvs [] $ \kcrecs -> withArrayLen kcrecs (f . fi)
-  where
-    go []              kcrecs f' = f' $ reverse kcrecs
-    go ((k, v) : kvs') kcrecs f' = withKCSTR k $ \kstr ->
-                                   withKCSTR v $ \vstr ->
-                                   go kvs' (KCREC kstr vstr : kcrecs) f'
+withKCRECArray kvs f = withArrayLen (map KCREC kvs) (f . fi)
 
 -------------------------------------------------------------------------------
 
@@ -115,13 +111,13 @@ type KCVISITFULL = FunPtr (CString -> CSize -> CString -> CSize -> Ptr CSize -> 
 mkVisitorFull :: VisitorFull -> IO KCVISITFULL
 mkVisitorFull visitor =
   mkKCVISITFULL $ \kptr klen vptr vlen sizeptr _opq ->
-  do k <- BS.packCStringLen (kptr, fi klen)
-     v <- BS.packCStringLen (vptr, fi vlen)
+  do k <- BS.unsafePackCStringLen (kptr, fi klen)
+     v <- BS.unsafePackCStringLen (vptr, fi vlen)
      res <- visitor k v
      case res of
        Left NoOperation -> _KCVISNOP
        Left Remove      -> _KCVISREMOVE
-       Right newv -> BS.useAsCStringLen newv $ \(newvptr, len) -> poke sizeptr (fi len) >> return newvptr
+       Right newv -> BS.unsafeUseAsCStringLen newv $ \(newvptr, len) -> poke sizeptr (fi len) >> return newvptr
 foreign import ccall "wrapper"  
   mkKCVISITFULL :: (CString -> CSize -> CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
                    -> IO KCVISITFULL
@@ -131,11 +127,11 @@ type KCVISITEMPTY = FunPtr (CString -> CSize -> Ptr CSize -> Ptr () -> IO CStrin
 mkVisitorEmpty :: VisitorEmpty -> IO KCVISITEMPTY
 mkVisitorEmpty visitor =
   mkKCVISITEMPTY $ \kptr klen sizeptr _opq ->
-  do k <- BS.packCStringLen (kptr, fi klen)
+  do k <- BS.unsafePackCStringLen (kptr, fi klen)
      res <- visitor k
      case res of
        Nothing -> _KCVISNOP
-       Just v  -> BS.useAsCStringLen v $ \(vptr, vlen) -> poke sizeptr (fi vlen) >> return vptr
+       Just v  -> BS.unsafeUseAsCStringLen v $ \(vptr, vlen) -> poke sizeptr (fi vlen) >> return vptr
 foreign import ccall "wrapper"
   mkKCVISITEMPTY :: (CString -> CSize -> Ptr CSize -> Ptr () -> IO CString) -> IO KCVISITEMPTY
 
@@ -143,23 +139,23 @@ foreign import ccall "wrapper"
 
 keyValFun :: (Ptr KCDB -> CString -> CSize -> CString -> CSize -> IO Int32) -> String
              -> (Ptr KCDB -> ByteString -> ByteString -> IO ())
-keyValFun f fn db k v = BS.useAsCStringLen k $ \(kptr, klen) ->
-                        BS.useAsCStringLen v $ \(vptr, vlen) ->
+keyValFun f fn db k v = BS.unsafeUseAsCStringLen k $ \(kptr, klen) ->
+                        BS.unsafeUseAsCStringLen v $ \(vptr, vlen) ->
                         f db kptr (fi klen) vptr (fi vlen) >>= handleBoolResult db fn
 
 keyFun :: (Ptr KCDB -> CString -> CSize -> IO Int32) -> String
           -> (Ptr KCDB -> ByteString -> IO ())
-keyFun f fn db k = BS.useAsCStringLen k $ \(kptr, klen) ->
+keyFun f fn db k = BS.unsafeUseAsCStringLen k $ \(kptr, klen) ->
                    f db kptr (fi klen) >>= handleBoolResult db fn
 
 getFun :: (Ptr KCDB -> CString -> CSize -> Ptr CSize -> IO CString)
           -> (Ptr KCDB -> ByteString -> IO (Maybe ByteString))
 getFun f db k =
-  BS.useAsCStringLen k $ \(kptr, klen) ->
+  BS.unsafeUseAsCStringLen k $ \(kptr, klen) ->
   alloca $ \vlenptr ->
   do vptr <- f db kptr (fi klen) vlenptr
      if vptr == nullPtr then return Nothing
-       else peek vlenptr >>= \vlen -> fmap Just $ BS.packCStringLen (vptr, fi vlen)
+       else peek vlenptr >>= \vlen -> fmap Just $ BS.unsafePackCStringLen (vptr, fi vlen)
 
 -------------------------------------------------------------------------------
 
@@ -203,7 +199,7 @@ foreign import ccall "kclangc.h kcdbemsg"
 
 kcdbaccept :: Ptr KCDB -> ByteString -> VisitorFull -> VisitorEmpty -> Bool -> IO ()
 kcdbaccept db k vf ve w =
-  BS.useAsCStringLen k $ \(kptr, klen) ->
+  BS.unsafeUseAsCStringLen k $ \(kptr, klen) ->
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
      kcdbaccept' db kptr (fi klen) vfptr veptr nullPtr (boolToInt w) >>= handleBoolResult db "kcdbaccept"
@@ -275,13 +271,29 @@ foreign import ccall "kclangc.h kcdbseize"
 kcdbsetbulk :: Ptr KCDB -> [(ByteString, ByteString)] -> Bool -> IO Int64
 kcdbsetbulk db kvs atomic =
   withKCRECArray kvs $ \len kcrecptr ->
-  kcdbsetbulk' db kcrecptr (fi len) (boolToInt atomic) >>= handleCountResult db "kcdbsetbulk"
+  kcdbsetbulk' db kcrecptr len (boolToInt atomic) >>= handleCountResult db "kcdbsetbulk"
 foreign import ccall "kclangc.h kcdbsetbulk"
   kcdbsetbulk' :: Ptr KCDB -> Ptr KCREC -> CSize -> Int32 -> IO Int64
 
--- int64_t kcdbremovebulk (KCDB *db, const KCSTR *keys, size_t knum, int32_t atomic)
+kcdbremovebulk :: Ptr KCDB -> [ByteString] -> Bool -> IO Int64
+kcdbremovebulk db ks atomic =
+  withKCSTRArray ks $ \len kcstrptr ->
+  kcdbremovebulk' db kcstrptr len (boolToInt atomic) >>= handleCountResult db "kcdbremovebulk"
+foreign import ccall "kclangc.h kcdbremovebulk"
+  kcdbremovebulk' :: Ptr KCDB -> Ptr KCSTR -> CSize -> Int32 -> IO Int64
 
 -- int64_t kcdbgetbulk (KCDB *db, const KCSTR *keys, size_t knum, KCREC *recs, int32_t atomic)
+
+kcdbgetbulk :: Ptr KCDB -> [ByteString] -> Bool -> IO [(ByteString, ByteString)]
+kcdbgetbulk db ks atomic =
+  withKCSTRArray ks $ \len kcstrptr ->
+  allocaArray (fi len) $ \kcrecptr ->
+  do count <- kcdbgetbulk' db kcstrptr len kcrecptr (boolToInt atomic) >>=
+              handleCountResult db "kcdbgetbulk"
+     kcrecs <- peekArray (fi count) kcrecptr
+     return $ map unKCREC kcrecs
+foreign import ccall "kclangc.h kcdbgetbulk"
+  kcdbgetbulk' :: Ptr KCDB -> Ptr KCSTR -> CSize -> Ptr KCREC -> Int32 -> IO Int64
 
 -- int32_t kcdbsync (KCDB *db, int32_t hard, KCFILEPROC proc, void *opq)
 
