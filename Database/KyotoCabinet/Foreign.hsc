@@ -9,7 +9,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Unsafe as BS
 import Data.Data (Typeable)
 import Data.Int (Int32, Int64)
-import Foreign.C.String (CString, withCString, peekCString)
+import Foreign.C.String (CString, withCString, peekCString, withCString)
 import Foreign.C.Types (CSize, CInt)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArrayLen, peekArray, allocaArray)
@@ -282,8 +282,6 @@ kcdbremovebulk db ks atomic =
 foreign import ccall "kclangc.h kcdbremovebulk"
   kcdbremovebulk' :: Ptr KCDB -> Ptr KCSTR -> CSize -> Int32 -> IO Int64
 
--- int64_t kcdbgetbulk (KCDB *db, const KCSTR *keys, size_t knum, KCREC *recs, int32_t atomic)
-
 kcdbgetbulk :: Ptr KCDB -> [ByteString] -> Bool -> IO [(ByteString, ByteString)]
 kcdbgetbulk db ks atomic =
   withKCSTRArray ks $ \len kcstrptr ->
@@ -299,7 +297,10 @@ foreign import ccall "kclangc.h kcdbgetbulk"
 
 -- int32_t kcdboccupy (KCDB *db, int32_t writable, KCFILEPROC proc, void *opq)
 
--- int32_t kcdbcopy (KCDB *db, const char *dest)
+kcdbcopy :: Ptr KCDB -> String -> IO ()
+kcdbcopy db fn = withCString fn $ \cstr -> kcdbcopy' db cstr >>= handleBoolResult db "kcdbcopy"
+foreign import ccall "kclangc.h kcdbcopy"
+  kcdbcopy' :: Ptr KCDB -> CString -> IO Int32
 
 -- int32_t kcdbbegintran (KCDB *db, int32_t hard)
 
@@ -309,17 +310,43 @@ foreign import ccall "kclangc.h kcdbgetbulk"
 
 -- int32_t kcdbclear (KCDB *db)
 
--- int32_t kcdbdumpsnap (KCDB *db, const char *dest)
+kcdbdumpsnap :: Ptr KCDB -> String -> IO ()
+kcdbdumpsnap db fn = withCString fn $ \cstr -> kcdbdumpsnap' db cstr >>= handleBoolResult db "kcdbdumpsnap"
+foreign import ccall "kclangc.h kcdbdumpsnap"
+  kcdbdumpsnap' :: Ptr KCDB -> CString -> IO Int32
 
--- int32_t kcdbloadsnap (KCDB *db, const char *src)
+kcdbloadsnap :: Ptr KCDB -> String -> IO ()
+kcdbloadsnap db fn = withCString fn $ \cstr -> kcdbloadsnap' db cstr >>= handleBoolResult db "kcdbloadsnap"
+foreign import ccall "kclangc.h kcdbloadsnap"
+  kcdbloadsnap' :: Ptr KCDB -> CString -> IO Int32
 
--- int64_t kcdbcount (KCDB *db)
+kcdbcount :: Ptr KCDB -> IO Int64
+kcdbcount db = kcdbcount' db >>= handleCountResult db "kcdbcount"
+foreign import ccall "kclangc.h kcdbcount"
+  kcdbcount' :: Ptr KCDB -> IO Int64
 
--- int64_t kcdbsize (KCDB *db)
+kcdbsize :: Ptr KCDB -> IO Int64
+kcdbsize db = kcdbsize' db >>= handleCountResult db "kcdbsize"
+foreign import ccall "kclangc.h kcdbsize"
+  kcdbsize' :: Ptr KCDB -> IO Int64
 
--- char *kcdbpath (KCDB *db)
+kcdbpath :: Ptr KCDB -> IO String
+kcdbpath db =
+  do cstr <- kcdbpath' db
+     if cstr == nullPtr then error "Database.KyotoCabinet.Foreign.kcdbpath: kcdbpath() returned NULL"
+       else do path <- peekCString cstr
+               if null path then throwKCException db "kcdbpath"
+                 else return path
+foreign import ccall "kclangc.h kcdbpath"
+  kcdbpath' :: Ptr KCDB -> IO CString
 
--- char *kcdbstatus (KCDB *db)
+kcdbstatus :: Ptr KCDB -> IO String
+kcdbstatus db =
+  do cstr <- kcdbstatus' db
+     if cstr == nullPtr then throwKCException db "kcdbstatus"
+       else peekCString cstr
+foreign import ccall "kclangc.h kcdbstatus"
+  kcdbstatus' :: Ptr KCDB -> IO CString
 
 -- int64_t kcdbmatchprefix (KCDB *db, const char *prefix, char **strary, size_t max)
 
