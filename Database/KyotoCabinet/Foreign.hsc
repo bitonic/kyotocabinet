@@ -131,7 +131,7 @@ mkVisitorFull visitor =
        Left NoOperation -> _KCVISNOP
        Left Remove      -> _KCVISREMOVE
        Right newv -> BS.unsafeUseAsCStringLen newv $ \(newvptr, len) -> poke sizeptr (fi len) >> return newvptr
-foreign import ccall "wrapper"  
+foreign import ccall "wrapper"
   mkKCVISITFULL :: (CString -> CSize -> CString -> CSize -> Ptr CSize -> Ptr () -> IO CString)
                    -> IO KCVISITFULL
 
@@ -225,7 +225,7 @@ kcdbacceptbulk db ks vf ve w =
   do vfptr <- mkVisitorFull vf
      veptr <- mkVisitorEmpty ve
      kcdbacceptbulk' db kcstrptr (fi len) vfptr veptr nullPtr (boolToInt w) >>= handleBoolResult db "kcdbacceptbulk"
-foreign import ccall "kclangc.h kcdbacceptbulk" 
+foreign import ccall "kclangc.h kcdbacceptbulk"
   kcdbacceptbulk' :: Ptr KCDB -> Ptr KCSTR -> CSize -> KCVISITFULL -> KCVISITEMPTY -> Ptr () -> Int32 -> IO Int32
 
 kcdbiterate :: Ptr KCDB -> VisitorFull -> Bool -> IO ()
@@ -374,6 +374,43 @@ kcdbmerge db dbs mode = withArrayLen dbs $ \len dbptr ->
 foreign import ccall "kclangc.h kcdbmerge"
   kcdbmerge' :: Ptr KCDB -> Ptr (Ptr KCDB) -> CSize -> Int32 -> IO Int32
 
+-------------------------------------------------------------------------------
+
+-- KCCUR *kcdbcursor (KCDB *db)
+
+-- void kccurdel (KCCUR *cur)
+
+-- int32_t kccuraccept (KCCUR *cur, KCVISITFULL fullproc, void *opq, int32_t writable, int32_t step)
+
+-- int32_t kccursetvalue (KCCUR *cur, const char *vbuf, size_t vsiz, int32_t step)
+
+-- int32_t kccurremove (KCCUR *cur)
+
+-- char *kccurgetkey (KCCUR *cur, size_t *sp, int32_t step)
+
+-- char *kccurgetvalue (KCCUR *cur, size_t *sp, int32_t step)
+
+-- char *kccurget (KCCUR *cur, size_t *ksp, const char **vbp, size_t *vsp, int32_t step)
+
+-- char *kccurseize (KCCUR *cur, size_t *ksp, const char **vbp, size_t *vsp)
+
+-- int32_t kccurjump (KCCUR *cur)
+
+-- int32_t kccurjumpkey (KCCUR *cur, const char *kbuf, size_t ksiz)
+
+-- int32_t kccurjumpback (KCCUR *cur)
+
+-- int32_t kccurjumpbackkey (KCCUR *cur, const char *kbuf, size_t ksiz)
+
+-- int32_t kccurstep (KCCUR *cur)
+
+-- int32_t kccurstepback (KCCUR *cur)
+
+-- KCDB * kccurdb (KCCUR *cur)
+
+-- int32_t kccurecode (KCCUR *cur)
+
+-- const char * kccuremsg (KCCUR *cur)
 
 -------------------------------------------------------------------------------
 

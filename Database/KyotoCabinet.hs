@@ -58,7 +58,7 @@ module Database.KyotoCabinet
        , GenericDB (..)
        , MergeMode (..)
        , merge
-         
+
          -- * Opening modes
        , Mode (..)
        , WriteMode (..)
@@ -103,7 +103,7 @@ formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ 
     eq k v = k ++ "=" ++ v
 
     type' = "type" `eq` className class'
-    
+
     optss = map (uncurry eq . getKeyValue) opts
 
     logs = case log of
@@ -111,7 +111,7 @@ formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ 
                                              , hashify (map (eq "logkinds" . logKindStr) lks)
                                              , "logpx" `eq` lpx
                                              ]
-    
+
     logFileStr (File fp) = fp
     logFileStr StdOut    = "-"
     logFileStr StdErr    = "+"
@@ -164,7 +164,7 @@ iterate :: DB c -> VisitorFull -> Writable -> IO ()
 iterate (DB kcdb) = kcdbiterate kcdb
 
 scanPara :: DB c -> VisitorFull -> Int -> IO ()
-scanPara (DB kcdb) = kcdbscanpara kcdb 
+scanPara (DB kcdb) = kcdbscanpara kcdb
 
 -------------------------------------------------------------------------------
 
@@ -440,7 +440,7 @@ instance Persistent Forest
 data Text = Text
 instance Class Text where className _ = "kcx"
 instance Persistent Text
-         
+
 -------------------------------------------------------------------------------
 
 data TuningOption = Options Options
