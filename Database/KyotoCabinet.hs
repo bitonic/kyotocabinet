@@ -15,18 +15,31 @@ module Database.KyotoCabinet
        , accept
        , acceptBulk
        , iterate
-       , parScan
+       , scanPara
          -- ** Setting
        , set
+       , setBulk
        , add
        , replace
          -- ** Modifying
        , append
          -- ** Getting
        , get
+       , getBulk
          -- ** Removing
        , remove
-
+       , removeBulk
+       , seize
+         -- ** Exporting/importing
+       , copy
+       , dump
+       , load
+         -- ** Info & stats
+       , count
+       , size
+       , path
+       , status
+         
          -- * Opening modes
        , Mode (..)
        , WriteMode (..)
@@ -73,8 +86,7 @@ import Prelude hiding (log, iterate)
 
 import Database.KyotoCabinet.Foreign
 
-
-newtype DB c = DB (Ptr KCDB)
+newtype DB c = DB {unDB :: Ptr KCDB}
 
 -------------------------------------------------------------------------------
 
@@ -146,21 +158,22 @@ acceptBulk (DB kcdb) = kcdbacceptbulk kcdb
 iterate :: DB c -> VisitorFull -> Writable -> IO ()
 iterate (DB kcdb) = kcdbiterate kcdb
 
-parScan :: DB c -> VisitorFull -> Int -> IO ()
-parScan (DB kcdb) = kcdbscanpara kcdb 
+scanPara :: DB c -> VisitorFull -> Int -> IO ()
+scanPara (DB kcdb) = kcdbscanpara kcdb 
 
 -------------------------------------------------------------------------------
 
 set :: DB c -> ByteString -> ByteString -> IO ()
 set (DB kcdb) = kcdbset kcdb
 
+setBulk :: DB c -> [(ByteString, ByteString)] -> Bool -> IO Int64
+setBulk (DB kcdb) = kcdbsetbulk kcdb
+
 add :: DB c -> ByteString -> ByteString -> IO ()
 add (DB kcdb) = kcdbadd kcdb
 
 replace :: DB c -> ByteString -> ByteString -> IO ()
 replace (DB kcdb) = kcdbreplace kcdb
-
--------------------------------------------------------------------------------
 
 append :: DB c -> ByteString -> ByteString -> IO ()
 append (DB kcdb) = kcdbappend kcdb
@@ -170,10 +183,44 @@ append (DB kcdb) = kcdbappend kcdb
 get :: DB c -> ByteString -> IO (Maybe ByteString)
 get (DB kcdb) k = kcdbget kcdb k
 
+getBulk :: DB c -> [ByteString] -> Bool -> IO [(ByteString, ByteString)]
+getBulk (DB kcdb) = kcdbgetbulk kcdb
+
 -------------------------------------------------------------------------------
 
 remove :: DB c -> ByteString -> IO ()
 remove (DB kcdb) = kcdbremove kcdb
+
+removeBulk :: DB c -> [ByteString] -> Bool -> IO Int64
+removeBulk (DB kcdb) = kcdbremovebulk kcdb
+
+seize :: DB c -> ByteString -> IO (Maybe ByteString)
+seize (DB kcdb) = kcdbseize kcdb
+
+-------------------------------------------------------------------------------
+
+copy :: DB c -> String -> IO ()
+copy (DB kcdb) = kcdbcopy kcdb
+
+dump :: DB c -> String -> IO ()
+dump (DB kcdb) = kcdbdumpsnap kcdb
+
+load :: DB c -> String -> IO ()
+load (DB kcdb) = kcdbloadsnap kcdb
+
+-------------------------------------------------------------------------------
+
+count :: DB c -> IO Int64
+count (DB kcdb) = kcdbcount kcdb
+
+size :: DB c -> IO Int64
+size (DB kcdb) = kcdbsize kcdb
+
+path :: DB c -> IO String
+path (DB kcdb) = kcdbpath kcdb
+
+status :: DB c -> IO String
+status (DB kcdb) = kcdbstatus kcdb
 
 -------------------------------------------------------------------------------
 
