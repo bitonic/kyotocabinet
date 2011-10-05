@@ -72,6 +72,19 @@ withKCSTRArray ks f = go ks [] $ \kcstrs -> withArrayLen kcstrs (f . fi)
 
 ---------------------------------------------------------------------
 
+data MergeMode = Set
+               | Add
+               | Replace
+               | Append
+
+getMergeMode :: MergeMode -> Int32
+getMergeMode Set     = #{const KCMSET}
+getMergeMode Add     = #{const KCMADD}
+getMergeMode Replace = #{const KCMREPLACE}
+getMergeMode Append  = #{const KCMAPPEND}
+
+---------------------------------------------------------------------
+
 newtype KCREC = KCREC {unKCREC :: (ByteString, ByteString)}
 
 instance Storable KCREC where
@@ -353,6 +366,12 @@ foreign import ccall "kclangc.h kcdbstatus"
 -- int64_t kcdbmatchregex (KCDB *db, const char *regex, char **strary, size_t max)
 
 -- int32_t kcdbmerge (KCDB *db, KCDB **srcary, size_t srcnum, uint32_t mode)
+
+kcdbmerge :: Ptr KCDB -> [Ptr KCDB] -> MergeMode -> IO ()
+kcdbmerge db dbs mode = withArrayLen dbs $ \len dbptr ->
+                        kcdbmerge' db dbptr (fi len) (getMergeMode mode) >>= handleBoolResult db "kcdbmerge"
+foreign import ccall "kclangc.h kcdbmerge"
+  kcdbmerge' :: Ptr KCDB -> Ptr (Ptr KCDB) -> CSize -> Int32 -> IO Int32
 
 -------------------------------------------------------------------------------
 
