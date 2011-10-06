@@ -180,11 +180,6 @@ data KCDB
 
 -------------------------------------------------------------------------------
 
-foreign import ccall "wrapper"
-  mkFinalizer :: (Ptr KCDB -> IO ()) -> IO (FunPtr (Ptr KCDB -> IO ()))
-
--------------------------------------------------------------------------------
-
 kcdbnew :: IO (Ptr KCDB)
 kcdbnew =
   do kcdb <- kcdbnew'
@@ -194,8 +189,8 @@ kcdbnew =
 foreign import ccall "kclangc.h kcdbnew"
   kcdbnew' :: IO (Ptr KCDB)
 
-foreign import ccall "kclangc.h kcdbdel"
-  kcdbdel :: Ptr KCDB -> IO ()
+foreign import ccall "kclangc.h &kcdbdel"
+  kcdbdel :: FunPtr (Ptr KCDB -> IO ())
 
 kcdbopen :: Ptr KCDB
             -> String -- ^ File name
@@ -394,8 +389,8 @@ kcdbcursor db =
 foreign import ccall "kclangc.h kcdbcursor"
   kcdbcursor' :: Ptr KCDB -> IO (Ptr KCCUR)
 
-foreign import ccall "kclangc.h kccurdel"
-  kcdbcurdel :: Ptr KCCUR -> IO ()
+foreign import ccall "kclangc.h &kccurdel"
+  kccurdel :: FunPtr (Ptr KCCUR -> IO ())
 
 kccuraccept :: Ptr KCCUR -> VisitorFull -> Bool -> Bool -> IO ()
 kccuraccept cur vf w s =
@@ -479,10 +474,11 @@ kccurjumpback cur = kccurjumpback' cur >>= handleBoolResultC cur "kccurjumpback"
 foreign import ccall "kclangc.h kccurjumpback"
   kccurjumpback' :: Ptr KCCUR -> IO Int32
 
-kccurjumpbackkey :: Ptr KCCUR -> IO ()
-kccurjumpbackkey cur = kccurjumpbackkey' cur >>= handleBoolResultC cur "kccurjumpbackkey"
+kccurjumpbackkey :: Ptr KCCUR -> ByteString -> IO ()
+kccurjumpbackkey cur k = BS.unsafeUseAsCStringLen k $ \(str, len) ->
+                         kccurjumpbackkey' cur str (fi len) >>= handleBoolResultC cur "kccurjumpbackkey"
 foreign import ccall "kclangc.h kccurjumpbackkey"
-  kccurjumpbackkey' :: Ptr KCCUR -> IO Int32
+  kccurjumpbackkey' :: Ptr KCCUR -> CString -> CSize -> IO Int32
 
 kccurstep :: Ptr KCCUR -> IO ()
 kccurstep cur = kccurstep' cur >>= handleBoolResultC cur "kccurstep"

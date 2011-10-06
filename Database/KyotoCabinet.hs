@@ -48,6 +48,27 @@ module Database.KyotoCabinet
          -- ** Merging
        , MergeMode (..)
        , merge
+         -- ** Cursors
+       , Cursor
+       , cursor
+         -- *** Visitor
+       , curAccept
+         -- *** Setting
+       , curSetValue
+         -- *** Getting
+       , curGetKey
+       , curGetValue
+       , curGet
+         -- *** Removing
+       , curRemove
+       , curSeize
+         -- *** Moving
+       , curJump
+       , curJumpKey
+       , curJumpBack
+       , curJumpBackKey
+       , curStep
+       , curStepBack
 
          -- * Opening modes
        , Mode (..)
@@ -113,7 +134,7 @@ formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ 
     logKindStr Error = "error"
 
 newDB :: Ptr KCDB -> IO DB
-newDB kcdb = fmap DB (mkFinalizer kcdbdel >>= flip newForeignPtr kcdb)
+newDB kcdb = fmap DB (newForeignPtr kcdbdel kcdb)
 
 newVolatile :: Volatile
                -> LoggingOptions
@@ -138,24 +159,28 @@ openPersistent class' fn log opts mode =
 
 -------------------------------------------------------------------------------
 
-withDB0 :: (Ptr KCDB -> IO f) -> (DB -> IO f)
-withDB0 act = flip withForeignPtr act . unDB
+withFor0 :: (h -> ForeignPtr c) -> (Ptr c -> IO f) -> (h -> IO f)
+withFor0 un act = flip withForeignPtr act . un
 
-withDB1 :: (Ptr KCDB -> a -> IO f) -> (DB -> a -> IO f)
-withDB1 act (DB db) a = withForeignPtr db $ \kcdb -> act kcdb a
+withFor1 :: (h -> ForeignPtr c) -> (Ptr c -> a -> IO f) -> (h -> a -> IO f)
+withFor1 un act h a = withForeignPtr (un h) $ \kcdb -> act kcdb a
 
-withDB2 :: (Ptr KCDB -> a -> b -> IO f) ->
-           (DB -> a -> b -> IO f)
-withDB2 act (DB db) a b = withForeignPtr db $ \kcdb -> act kcdb a b
+withFor2 :: (h -> ForeignPtr c) -> (Ptr c -> a -> b -> IO f)
+            -> (h -> a -> b -> IO f)
+withFor2 un act h a b = withForeignPtr (un h) $ \kcdb -> act kcdb a b
 
-withDB4 :: (Ptr KCDB -> a -> b -> c -> d -> IO f) ->
-           (DB -> a -> b -> c -> d -> IO f)
-withDB4 act (DB db) a b c d = withForeignPtr db $ \kcdb -> act kcdb a b c d
+withFor3 :: (h -> ForeignPtr c) -> (Ptr c -> a -> b -> d -> IO f)
+            -> (h -> a -> b -> d -> IO f)
+withFor3 un act h a b c = withForeignPtr (un h) $ \kcdb -> act kcdb a b c
+
+withFor4 :: (h -> ForeignPtr c) -> (Ptr c -> a -> b -> d -> e -> IO f)
+            -> (h -> a -> b -> d -> e -> IO f)
+withFor4 un act h a b c d = withForeignPtr (un h) $ \kcdb -> act kcdb a b c d
 
 -------------------------------------------------------------------------------
 
 close :: DB -> IO ()
-close = withDB0 kcdbclose
+close = withFor0 unDB kcdbclose
 
 -------------------------------------------------------------------------------
 
@@ -164,90 +189,141 @@ type Writable = Bool
 
 -- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
 accept :: DB -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
-accept = withDB4 kcdbaccept
+accept = withFor4 unDB kcdbaccept
 
 acceptBulk :: DB -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
-acceptBulk = withDB4 kcdbacceptbulk
+acceptBulk = withFor4 unDB kcdbacceptbulk
 
 iterate :: DB -> VisitorFull -> Writable -> IO ()
-iterate = withDB2 kcdbiterate
+iterate = withFor2 unDB kcdbiterate
 
 scanPara :: DB -> VisitorFull -> Int -> IO ()
-scanPara = withDB2 kcdbscanpara
+scanPara = withFor2 unDB kcdbscanpara
 
 -------------------------------------------------------------------------------
 
 set :: DB -> ByteString -> ByteString -> IO ()
-set = withDB2 kcdbset
+set = withFor2 unDB kcdbset
 
 setBulk :: DB -> [(ByteString, ByteString)] -> Bool -> IO Int64
-setBulk = withDB2 kcdbsetbulk
+setBulk = withFor2 unDB kcdbsetbulk
 
 add :: DB -> ByteString -> ByteString -> IO ()
-add = withDB2 kcdbadd
+add = withFor2 unDB kcdbadd
 
 replace :: DB -> ByteString -> ByteString -> IO ()
-replace = withDB2 kcdbreplace
+replace = withFor2 unDB kcdbreplace
 
 append :: DB -> ByteString -> ByteString -> IO ()
-append = withDB2 kcdbappend
+append = withFor2 unDB kcdbappend
 
 -------------------------------------------------------------------------------
 
 get :: DB -> ByteString -> IO (Maybe ByteString)
-get = withDB1 kcdbget
+get = withFor1 unDB kcdbget
 
 getBulk :: DB -> [ByteString] -> Bool -> IO [(ByteString, ByteString)]
-getBulk = withDB2 kcdbgetbulk
+getBulk = withFor2 unDB kcdbgetbulk
 
 -------------------------------------------------------------------------------
 
 remove :: DB -> ByteString -> IO ()
-remove = withDB1 kcdbremove
+remove = withFor1 unDB kcdbremove
 
 removeBulk :: DB -> [ByteString] -> Bool -> IO Int64
-removeBulk = withDB2 kcdbremovebulk
+removeBulk = withFor2 unDB kcdbremovebulk
 
 seize :: DB -> ByteString -> IO (Maybe ByteString)
-seize = withDB1 kcdbseize
+seize = withFor1 unDB kcdbseize
 
 clear :: DB -> IO ()
-clear = withDB0 kcdbclear
+clear = withFor0 unDB kcdbclear
 
 -------------------------------------------------------------------------------
 
 copy :: DB -> String -> IO ()
-copy = withDB1 kcdbcopy
+copy = withFor1 unDB kcdbcopy
 
 dump :: DB -> String -> IO ()
-dump = withDB1 kcdbdumpsnap
+dump = withFor1 unDB kcdbdumpsnap
 
 load :: DB -> String -> IO ()
-load = withDB1 kcdbloadsnap
+load = withFor1 unDB kcdbloadsnap
 
 -------------------------------------------------------------------------------
 
 count :: DB -> IO Int64
-count = withDB0 kcdbcount
+count = withFor0 unDB kcdbcount
 
 size :: DB -> IO Int64
-size = withDB0 kcdbsize
+size = withFor0 unDB kcdbsize
 
 path :: DB -> IO String
-path = withDB0 kcdbpath
+path = withFor0 unDB kcdbpath
 
 status :: DB -> IO String
-status = withDB0 kcdbstatus
+status = withFor0 unDB kcdbstatus
 
 -------------------------------------------------------------------------------
 
 merge :: DB -> [DB] -> MergeMode -> IO ()
-merge db dbs mode = go dbs [] $ \kcdbs -> withDB2 kcdbmerge db kcdbs mode
+merge db dbs mode = go dbs [] $ \kcdbs -> withFor2 unDB kcdbmerge db kcdbs mode
   where
     go []                kcdbs f = f $ reverse kcdbs
     go ((DB db') : dbs') kcdbs f = withForeignPtr db' $ \kcdb -> go dbs' (kcdb : kcdbs) f
 
 -------------------------------------------------------------------------------
+
+newtype Cursor = Cursor {unCursor :: ForeignPtr KCCUR}
+
+-------------------------------------------------------------------------------
+
+cursor :: DB -> IO Cursor
+cursor (DB db) = fmap Cursor (withForeignPtr db $ \kcdb -> kcdbcursor kcdb >>= newForeignPtr kccurdel)
+
+-------------------------------------------------------------------------------
+
+curAccept :: Cursor -> VisitorFull -> Bool -> Bool -> IO ()
+curAccept = withFor3 unCursor kccuraccept
+
+curSetValue :: Cursor -> ByteString -> Bool -> IO ()
+curSetValue = withFor2 unCursor kccursetvalue
+
+curRemove :: Cursor -> IO ()
+curRemove = withFor0 unCursor kccurremove
+
+curGetKey :: Cursor -> Bool -> IO ByteString
+curGetKey = withFor1 unCursor kccurgetkey
+
+curGetValue :: Cursor -> Bool -> IO ByteString
+curGetValue = withFor1 unCursor kccurgetvalue
+
+curGet :: Cursor -> Bool -> IO (ByteString, ByteString)
+curGet = withFor1 unCursor kccurget
+
+curSeize :: Cursor -> IO (ByteString, ByteString)
+curSeize = withFor0 unCursor kccurseize
+
+curJump :: Cursor -> IO ()
+curJump = withFor0 unCursor kccurjump
+
+curJumpKey :: Cursor -> ByteString -> IO ()
+curJumpKey = withFor1 unCursor kccurjumpkey
+
+curJumpBack :: Cursor -> IO ()
+curJumpBack = withFor0 unCursor kccurjumpback
+
+curJumpBackKey :: Cursor -> ByteString -> IO ()
+curJumpBackKey = withFor1 unCursor kccurjumpbackkey
+
+curStep :: Cursor -> IO ()
+curStep = withFor0 unCursor kccurstep
+
+curStepBack :: Cursor -> IO ()
+curStepBack = withFor0 unCursor kccurstepback
+
+-------------------------------------------------------------------------------
+
 
 data LoggingOptions = LoggingOptions { logFile   :: LogFile
                                        -- ^ The file in which the log messages will be written
