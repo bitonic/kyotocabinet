@@ -1,19 +1,10 @@
-{-# Language MultiParamTypeClasses, ExistentialQuantification #-}
 module Database.KyotoCabinet
        ( -- * DB Classes
          DB
          -- ** Volatile classes
-       , ProtoHash (..)
-       , ProtoTree (..)
-       , Stash (..)
-       , CacheHash (..)
-       , CacheTree (..)
+       , Volatile (..)
          -- ** Persistent classes
-       , Hash (..)
-       , Tree (..)
-       , Dir (..)
-       , Forest (..)
-       , Text (..)
+       , Persistent (..)
 
          -- * Operations
          -- ** Creation
@@ -55,7 +46,6 @@ module Database.KyotoCabinet
        , path
        , status
          -- ** Merging
-       , GenericDB (..)
        , MergeMode (..)
        , merge
 
@@ -91,7 +81,7 @@ import Prelude hiding (log, iterate)
 
 import Database.KyotoCabinet.Foreign
 
-newtype DB c = DB {unDB :: Ptr KCDB}
+newtype DB = DB {unDB :: Ptr KCDB}
 
 -------------------------------------------------------------------------------
 
@@ -121,24 +111,22 @@ formatName fn class' log opts = hashify $ maybeToList fn ++ [type'] ++ optss ++ 
     logKindStr Warn  = "warn"
     logKindStr Error = "error"
 
-newVolatile :: Volatile c
-               => c
+newVolatile :: Volatile
                -> LoggingOptions
                -> [TuningOption]
                -> Mode
-               -> IO (DB c)
+               -> IO (DB)
 newVolatile class' log opts mode =
   do kcdb <- kcdbnew
      kcdbopen kcdb (formatName Nothing class' log opts) mode
      return $ DB kcdb
 
-openPersistent :: Persistent c
-                  => c
+openPersistent :: Persistent
                   -> FilePath
                   -> LoggingOptions
                   -> [TuningOption]
                   -> Mode
-                  -> IO (DB c)
+                  -> IO (DB)
 openPersistent class' fn log opts mode =
   do kcdb <- kcdbnew
      kcdbopen kcdb (formatName (Just fn) class' log opts) mode
@@ -146,7 +134,7 @@ openPersistent class' fn log opts mode =
 
 -------------------------------------------------------------------------------
 
-close :: DB c -> IO ()
+close :: DB -> IO ()
 close (DB kcdb) = kcdbclose kcdb >> kcdbdel kcdb
 
 -------------------------------------------------------------------------------
@@ -154,88 +142,86 @@ close (DB kcdb) = kcdbclose kcdb >> kcdbdel kcdb
 type Writable = Bool
 
 -- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
-accept :: DB c -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
+accept :: DB -> ByteString -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
 accept (DB kcdb) = kcdbaccept kcdb
 
-acceptBulk :: DB c -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
+acceptBulk :: DB -> [ByteString] -> VisitorFull -> VisitorEmpty -> Writable -> IO ()
 acceptBulk (DB kcdb) = kcdbacceptbulk kcdb
 
-iterate :: DB c -> VisitorFull -> Writable -> IO ()
+iterate :: DB -> VisitorFull -> Writable -> IO ()
 iterate (DB kcdb) = kcdbiterate kcdb
 
-scanPara :: DB c -> VisitorFull -> Int -> IO ()
+scanPara :: DB -> VisitorFull -> Int -> IO ()
 scanPara (DB kcdb) = kcdbscanpara kcdb
 
 -------------------------------------------------------------------------------
 
-set :: DB c -> ByteString -> ByteString -> IO ()
+set :: DB -> ByteString -> ByteString -> IO ()
 set (DB kcdb) = kcdbset kcdb
 
-setBulk :: DB c -> [(ByteString, ByteString)] -> Bool -> IO Int64
+setBulk :: DB -> [(ByteString, ByteString)] -> Bool -> IO Int64
 setBulk (DB kcdb) = kcdbsetbulk kcdb
 
-add :: DB c -> ByteString -> ByteString -> IO ()
+add :: DB -> ByteString -> ByteString -> IO ()
 add (DB kcdb) = kcdbadd kcdb
 
-replace :: DB c -> ByteString -> ByteString -> IO ()
+replace :: DB -> ByteString -> ByteString -> IO ()
 replace (DB kcdb) = kcdbreplace kcdb
 
-append :: DB c -> ByteString -> ByteString -> IO ()
+append :: DB -> ByteString -> ByteString -> IO ()
 append (DB kcdb) = kcdbappend kcdb
 
 -------------------------------------------------------------------------------
 
-get :: DB c -> ByteString -> IO (Maybe ByteString)
+get :: DB -> ByteString -> IO (Maybe ByteString)
 get (DB kcdb) k = kcdbget kcdb k
 
-getBulk :: DB c -> [ByteString] -> Bool -> IO [(ByteString, ByteString)]
+getBulk :: DB -> [ByteString] -> Bool -> IO [(ByteString, ByteString)]
 getBulk (DB kcdb) = kcdbgetbulk kcdb
 
 -------------------------------------------------------------------------------
 
-remove :: DB c -> ByteString -> IO ()
+remove :: DB -> ByteString -> IO ()
 remove (DB kcdb) = kcdbremove kcdb
 
-removeBulk :: DB c -> [ByteString] -> Bool -> IO Int64
+removeBulk :: DB -> [ByteString] -> Bool -> IO Int64
 removeBulk (DB kcdb) = kcdbremovebulk kcdb
 
-seize :: DB c -> ByteString -> IO (Maybe ByteString)
+seize :: DB -> ByteString -> IO (Maybe ByteString)
 seize (DB kcdb) = kcdbseize kcdb
 
-clear :: DB c -> IO ()
+clear :: DB -> IO ()
 clear (DB kcdb) = kcdbclear kcdb
 
 -------------------------------------------------------------------------------
 
-copy :: DB c -> String -> IO ()
+copy :: DB -> String -> IO ()
 copy (DB kcdb) = kcdbcopy kcdb
 
-dump :: DB c -> String -> IO ()
+dump :: DB -> String -> IO ()
 dump (DB kcdb) = kcdbdumpsnap kcdb
 
-load :: DB c -> String -> IO ()
+load :: DB -> String -> IO ()
 load (DB kcdb) = kcdbloadsnap kcdb
 
 -------------------------------------------------------------------------------
 
-count :: DB c -> IO Int64
+count :: DB -> IO Int64
 count (DB kcdb) = kcdbcount kcdb
 
-size :: DB c -> IO Int64
+size :: DB -> IO Int64
 size (DB kcdb) = kcdbsize kcdb
 
-path :: DB c -> IO String
+path :: DB -> IO String
 path (DB kcdb) = kcdbpath kcdb
 
-status :: DB c -> IO String
+status :: DB -> IO String
 status (DB kcdb) = kcdbstatus kcdb
 
 -------------------------------------------------------------------------------
 
-data GenericDB = forall c. Class c => GenericDB (DB c)
-
-merge :: DB c1 -> [GenericDB] -> MergeMode -> IO ()
-merge (DB kcdb) dbs = kcdbmerge kcdb (map (\(GenericDB (DB kcdb')) -> kcdb') dbs)
+merge :: DB -> [DB] -> MergeMode -> IO ()
+merge (DB kcdb) dbs = kcdbmerge kcdb (map unDB dbs)
 
 -------------------------------------------------------------------------------
 
@@ -261,185 +247,167 @@ class Class c where
   -- | Returns the name as it should be for KyotoCabinet to understand it.
   className :: c -> String
 
--- | Marks a volatile class - in memory.
-class Class c => Volatile c
+-------------------------------------------------------------------------------
 
--- | Marks a persistent class - on disk.
-class Class c => Persistent c
+-- | A volatile - in RAM - database.
+data Volatile = ProtoHash
+                -- ^ Prototype hash database.
+                --
+                --   On-memory database implemented with @std::unordered_map@.
+                --
+                --     * Persistence: /volatile/
+                --
+                --     * Algorithm: /hash table/
+                --
+                --     * Complexity: /O(1)/
+                --
+                --     * Sequence: /undefined/
+                --
+                --     * Lock unit: /whole (rwlock)/
+              | ProtoTree
+                -- ^ Prototype tree database.
+                --
+                --  On-memory database implemented with @std::map@.
+                --
+                --     * Persistence: /volatile/
+                --
+                --     * Algorithm: /red black tree/
+                --
+                --     * Complexity: /O(log n)/
+                --
+                --     * Sequence: /lexical order/
+                --
+                --     * Lock unit: /whole (rwlock)/
+              | Stash
+                -- ^ Stash database.
+                --
+                --   On-memory database, memory efficient.
+                --
+                --     * Persistence: /volatile/
+                --
+                --     * Algorithm: /red black tree/
+                --
+                --     * Complexity: /O(log n)/
+                --
+                --     * Sequence: /lexical order/
+                --
+                --     * Lock unit: /record (rwlock)/
+              | CacheHash
+                -- ^ Cache hash databaseb.
+                --
+                --   On-memory database with definable size, and with a LRU algorithm for eviction.
+                --
+                --     * Persistence: /volatile/
+                --
+                --     * Algorithm: /hash table/
+                --
+                --     * Complexity: /O(1)/
+                --
+                --     * Sequence: /undefined/
+                --
+                --     * Lock unit: /record (mutex)/
+              | CacheTree
+                -- ^ Cache tree database
+                --
+                --   On-memory database using a B+ tree, useful for an ordered cache.
+                --
+                --     * Persistence: /volatile/
+                --
+                --     * Algorithm: /B+ tree/
+                --
+                --     * Complexity: /O(log n)/
+                --
+                --     * Sequence: /custom order/
+                --
+                --     * Lock unit: /page (mutex)/
+
+instance Class Volatile where
+  className ProtoHash = "-"
+  className ProtoTree = "+"
+  className Stash     = ":"
+  className CacheHash = "*"
+  className CacheTree = "%"
 
 -------------------------------------------------------------------------------
 
--- | Prototype hash database.
---
---   On-memory database implemented with @std::unordered_map@.
---
---     * Persistence: /volatile/
---
---     * Algorithm: /hash table/
---
---     * Complexity: /O(1)/
---
---     * Sequence: /undefined/
---
---     * Lock unit: /whole (rwlock)/
-data ProtoHash = ProtoHash
-instance Class ProtoHash where className _ = "-"
-instance Volatile ProtoHash
+-- | A persistent database
+data Persistent = Hash
+                  -- ^ File hash database
+                  --
+                  --   File hash database: tipical DBM.
+                  --
+                  --     * Persistence: /persistent/
+                  --
+                  --     * Algorithm: /hash table/
+                  --
+                  --     * Complexity: /O(1)/
+                  --
+                  --     * Sequence: /undefined/
+                  --
+                  --     * Lock unit: /record (rwlock)/
+                | Tree
+                  -- ^ File tree database
+                  --
+                  --   File database implemented with a B+: DBM with order.
+                  --
+                  --     * Persistence: /persistent/
+                  --
+                  --     * Algorithm: /B+ tree/
+                  --
+                  --     * Complexity: /O(log n)/
+                  --
+                  --     * Sequence: /custom order/
+                  --
+                  --     * Lock unit: /page (rwlock)/
+                | Dir
+                  -- ^ Directory hash database
+                  --
+                  --   Respective files stored in a directory of the file system.
+                  --
+                  --     * Persistence: /persistent/
+                  --
+                  --     * Algorithm: /undefined/
+                  --
+                  --     * Complexity: /undefined/
+                  --
+                  --     * Sequence: /undefined/
+                  --
+                  --     * Lock unit: /record (rwlock)/
+                | Forest
+                  -- ^ Directory tree database
+                  --
+                  --   Directory database of B+ tree: huge DBM with order.
+                  --
+                  --     * Persistence: /persistent/
+                  --
+                  --     * Algorithm: /B+ tree/
+                  --
+                  --     * Complexity: /O(log n)/
+                  --
+                  --     * Sequence: /custom order/
+                  --
+                  --     * Lock unit: /page (rwlock)/
+                | Text
+                  -- ^ Plain text database
+                  --
+                  --   Plain text file handled as a database.
+                  --
+                  --     * Persistence: /persistent/
+                  --
+                  --     * Algorithm: /plain text/
+                  --
+                  --     * Complexity: /undefined/
+                  --
+                  --     * Sequence: /stored order/
+                  --
+                  --     * Lock unit: /record (rwlock)/
 
--- | Prototype tree database.
---
---  On-memory database implemented with @std::map@.
---
---     * Persistence: /volatile/
---
---     * Algorithm: /red black tree/
---
---     * Complexity: /O(log n)/
---
---     * Sequence: /lexical order/
---
---     * Lock unit: /whole (rwlock)/
-data ProtoTree = ProtoTree
-instance Class ProtoTree where className _ = "+"
-instance Volatile ProtoTree
-
--- | Stash database.
---
---   On-memory database, memory efficient.
---
---     * Persistence: /volatile/
---
---     * Algorithm: /red black tree/
---
---     * Complexity: /O(log n)/
---
---     * Sequence: /lexical order/
---
---     * Lock unit: /record (rwlock)/
-data Stash = Stash
-instance Class Stash where className _ = ":"
-instance Volatile Stash
-
--- | Cache hash database.
---
---   On-memory database with definable size, and with a LRU algorithm for eviction.
---
---     * Persistence: /volatile/
---
---     * Algorithm: /hash table/
---
---     * Complexity: /O(1)/
---
---     * Sequence: /undefined/
---
---     * Lock unit: /record (mutex)/
-data CacheHash = CacheHash
-instance Class CacheHash where className _ = "*"
-instance Volatile CacheHash
-
--- | Cache tree database
---
---   On-memory database using a B+ tree, useful for an ordered cache.
---
---     * Persistence: /volatile/
---
---     * Algorithm: /B+ tree/
---
---     * Complexity: /O(log n)/
---
---     * Sequence: /custom order/
---
---     * Lock unit: /page (mutex)/
-data CacheTree = CacheTree
-instance Class CacheTree where className _ = "%"
-instance Volatile CacheTree
-
--------------------------------------------------------------------------------
-
--- | File hash database
---
---   File hash database: tipical DBM.
---
---     * Persistence: /persistent/
---
---     * Algorithm: /hash table/
---
---     * Complexity: /O(1)/
---
---     * Sequence: /undefined/
---
---     * Lock unit: /record (rwlock)/
-data Hash = Hash
-instance Class Hash where className _ = "kch"
-instance Persistent Hash
-
--- | File tree database
---
---   File database implemented with a B+: DBM with order.
---
---     * Persistence: /persistent/
---
---     * Algorithm: /B+ tree/
---
---     * Complexity: /O(log n)/
---
---     * Sequence: /custom order/
---
---     * Lock unit: /page (rwlock)/
-data Tree = Tree
-instance Class Tree where className _ = "kct"
-instance Persistent Tree
-
--- | Directory hash database
---
---   Respective files stored in a directory of the file system.
---
---     * Persistence: /persistent/
---
---     * Algorithm: /undefined/
---
---     * Complexity: /undefined/
---
---     * Sequence: /undefined/
---
---     * Lock unit: /record (rwlock)/
-data Dir = Dir
-instance Class Dir where className _ = "kcd"
-instance Persistent Dir
-
--- | Directory tree database
---
---   Directory database of B+ tree: huge DBM with order.
---
---     * Persistence: /persistent/
---
---     * Algorithm: /B+ tree/
---
---     * Complexity: /O(log n)/
---
---     * Sequence: /custom order/
---
---     * Lock unit: /page (rwlock)/
-data Forest = Forest
-instance Class Forest where className _ = "kcf"
-instance Persistent Forest
-
--- | Plain text database
---
---   Plain text file handled as a database.
---
---     * Persistence: /persistent/
---
---     * Algorithm: /plain text/
---
---     * Complexity: /undefined/
---
---     * Sequence: /stored order/
---
---     * Lock unit: /record (rwlock)/
-data Text = Text
-instance Class Text where className _ = "kcx"
-instance Persistent Text
+instance Class Persistent where
+  className Hash   = "kch"
+  className Tree   = "kct"
+  className Dir    = "kcd"
+  className Forest = "kcf"
+  className Text   = "kcx"
 
 -------------------------------------------------------------------------------
 
