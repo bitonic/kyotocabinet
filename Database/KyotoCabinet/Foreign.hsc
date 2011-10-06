@@ -101,6 +101,10 @@ withKCRECArray kvs f = withArrayLen (map KCREC kvs) (f . fi)
 
 -------------------------------------------------------------------------------
 
+data KCCUR
+
+-------------------------------------------------------------------------------
+
 data VisitorAction = NoOperation -- ^ Don't do anything
                    | Remove      -- ^ Remove the record
 
@@ -173,6 +177,11 @@ getFun f db k =
 -------------------------------------------------------------------------------
 
 data KCDB
+
+-------------------------------------------------------------------------------
+
+foreign import ccall "wrapper"
+  mkFinalizer :: (Ptr KCDB -> IO ()) -> IO (FunPtr (Ptr KCDB -> IO ()))
 
 -------------------------------------------------------------------------------
 
@@ -376,7 +385,9 @@ foreign import ccall "kclangc.h kcdbmerge"
 
 -------------------------------------------------------------------------------
 
--- KCCUR *kcdbcursor (KCDB *db)
+foreign import ccall "kclangc.h kcdbcursor"
+  kcdbcursor :: Ptr KCDB -> Ptr KCCUR
+
 
 -- void kccurdel (KCCUR *cur)
 
