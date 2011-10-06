@@ -418,7 +418,7 @@ foreign import ccall "kclangc.h kccurremove"
 kccurgetkey :: Ptr KCCUR -> Bool -> IO ByteString
 kccurgetkey cur s =
   alloca $ \lenptr ->
-  do cstr <- kccurgetkey' cur lenptr (boolToInt s)
+  do cstr <- kccurgetkey' cur lenptr (boolToInt s) >>= handlePtrResultC cur "kccurgetkey"
      len <- peek lenptr
      BS.unsafePackCStringLen (cstr, fi len)
 foreign import ccall "kclangc.h kccurgetkey"
@@ -427,18 +427,18 @@ foreign import ccall "kclangc.h kccurgetkey"
 kccurgetvalue :: Ptr KCCUR -> Bool -> IO ByteString
 kccurgetvalue cur s =
   alloca $ \lenptr ->
-  do cstr <- kccurgetvalue' cur lenptr (boolToInt s)
+  do cstr <- kccurgetvalue' cur lenptr (boolToInt s) >>= handlePtrResultC cur "kccurget"
      len <- peek lenptr
      BS.unsafePackCStringLen (cstr, fi len)
 foreign import ccall "kclangc.h kccurgetvalue"
   kccurgetvalue' :: Ptr KCCUR -> Ptr CSize -> Int32 -> IO CString
 
-hccurget :: Ptr KCCUR -> Bool -> IO (ByteString, ByteString)
-hccurget cur s =
+kccurget :: Ptr KCCUR -> Bool -> IO (ByteString, ByteString)
+kccurget cur s =
   alloca $ \klenptr ->
   alloca $ \vstrptr ->
   alloca $ \vlenptr ->
-  do kstr <- kccurget' cur klenptr vstrptr vlenptr (boolToInt s)
+  do kstr <- kccurget' cur klenptr vstrptr vlenptr (boolToInt s) >>= handlePtrResultC cur "kccurget"
      klen <- peek klenptr
      vstr <- peek vstrptr
      vlen <- peek vlenptr
@@ -448,26 +448,54 @@ hccurget cur s =
 foreign import ccall "kclangc.h kccurget"
   kccurget' :: Ptr KCCUR -> Ptr CSize -> Ptr CString -> Ptr CSize -> Int32 -> IO CString
 
--- char *kccurseize (KCCUR *cur, size_t *ksp, const char **vbp, size_t *vsp)
+kccurseize :: Ptr KCCUR -> IO (ByteString, ByteString)
+kccurseize cur =
+  alloca $ \klenptr ->
+  alloca $ \vstrptr ->
+  alloca $ \vlenptr ->
+  do kstr <- kccurseize' cur klenptr vstrptr vlenptr >>= handlePtrResultC cur "kccurseize"
+     klen <- peek klenptr
+     vstr <- peek vstrptr
+     vlen <- peek vlenptr
+     k <- BS.unsafePackCStringLen (kstr, fi klen)
+     v <- BS.unsafePackCStringLen (vstr, fi vlen)
+     return (k, v)
+foreign import ccall "kclangc.h kccurseize"
+  kccurseize' :: Ptr KCCUR -> Ptr CSize -> Ptr CString -> Ptr CSize -> IO CString
 
--- int32_t kccurjump (KCCUR *cur)
+kccurjump :: Ptr KCCUR -> IO ()
+kccurjump cur = kccurjump' cur >>= handleBoolResultC cur "kccurjump"
+foreign import ccall "kclangc.h kccurjump"
+  kccurjump' :: Ptr KCCUR -> IO Int32
 
--- int32_t kccurjumpkey (KCCUR *cur, const char *kbuf, size_t ksiz)
+kccurjumpkey :: Ptr KCCUR -> ByteString -> IO ()
+kccurjumpkey cur k = BS.unsafeUseAsCStringLen k $ \(str, len) ->
+                     kccurjumpkey' cur str (fi len) >>= handleBoolResultC cur "kccurjumpkey"
+foreign import ccall "kclangc.h kccurjumpkey"
+  kccurjumpkey' :: Ptr KCCUR -> CString -> CSize -> IO Int32
 
--- int32_t kccurjumpback (KCCUR *cur)
+kccurjumpback :: Ptr KCCUR -> IO ()
+kccurjumpback cur = kccurjumpback' cur >>= handleBoolResultC cur "kccurjumpback"
+foreign import ccall "kclangc.h kccurjumpback"
+  kccurjumpback' :: Ptr KCCUR -> IO Int32
 
--- int32_t kccurjumpbackkey (KCCUR *cur, const char *kbuf, size_t ksiz)
+kccurjumpbackkey :: Ptr KCCUR -> IO ()
+kccurjumpbackkey cur = kccurjumpbackkey' cur >>= handleBoolResultC cur "kccurjumpbackkey"
+foreign import ccall "kclangc.h kccurjumpbackkey"
+  kccurjumpbackkey' :: Ptr KCCUR -> IO Int32
 
--- int32_t kccurstep (KCCUR *cur)
+kccurstep :: Ptr KCCUR -> IO ()
+kccurstep cur = kccurstep' cur >>= handleBoolResultC cur "kccurstep"
+foreign import ccall "kclangc.h kccurstep"
+  kccurstep' :: Ptr KCCUR -> IO Int32
 
--- int32_t kccurstepback (KCCUR *cur)
+kccurstepback :: Ptr KCCUR -> IO ()
+kccurstepback cur = kccurstepback' cur >>= handleBoolResultC cur "kccurstepback"
+foreign import ccall "kclangc.h kccurstepback"
+  kccurstepback' :: Ptr KCCUR -> IO Int32
 
 foreign import ccall "kclangc.h kccurdb"
   kccurdb :: Ptr KCCUR -> IO (Ptr KCDB)
-
--- int32_t kccurecode (KCCUR *cur)
-
--- const char * kccuremsg (KCCUR *cur)
 
 -------------------------------------------------------------------------------
 
@@ -514,8 +542,11 @@ handleCountResult db fun count | count == -1 = throwKCException db fun
                                | otherwise  = return count
 
 handleBoolResultC :: Ptr KCCUR -> String -> Int32 -> IO ()
-handleBoolResultC cur fun status | status == 0 = kccurdb cur >>= flip throwKCException fun
-                                 | otherwise  = return ()
+handleBoolResultC cur fun status = kccurdb cur >>= \db -> handleBoolResult db fun status
+
+handlePtrResultC :: Ptr KCCUR -> String -> Ptr a -> IO (Ptr a)
+handlePtrResultC cur fun ptr | ptr == nullPtr = kccurdb cur >>= flip throwKCException fun
+                             | otherwise     = return ptr
 
 
 ---------------------------------------------------------------------
