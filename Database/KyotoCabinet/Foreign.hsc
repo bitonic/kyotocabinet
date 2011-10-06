@@ -415,11 +415,38 @@ kccurremove cur = kccurremove' cur >>= handleBoolResultC cur "kccurremove"
 foreign import ccall "kclangc.h kccurremove"
   kccurremove' :: Ptr KCCUR -> IO Int32
 
--- char *kccurgetkey (KCCUR *cur, size_t *sp, int32_t step)
+kccurgetkey :: Ptr KCCUR -> Bool -> IO ByteString
+kccurgetkey cur s =
+  alloca $ \lenptr ->
+  do cstr <- kccurgetkey' cur lenptr (boolToInt s)
+     len <- peek lenptr
+     BS.unsafePackCStringLen (cstr, fi len)
+foreign import ccall "kclangc.h kccurgetkey"
+  kccurgetkey' :: Ptr KCCUR -> Ptr CSize -> Int32 -> IO CString
 
--- char *kccurgetvalue (KCCUR *cur, size_t *sp, int32_t step)
+kccurgetvalue :: Ptr KCCUR -> Bool -> IO ByteString
+kccurgetvalue cur s =
+  alloca $ \lenptr ->
+  do cstr <- kccurgetvalue' cur lenptr (boolToInt s)
+     len <- peek lenptr
+     BS.unsafePackCStringLen (cstr, fi len)
+foreign import ccall "kclangc.h kccurgetvalue"
+  kccurgetvalue' :: Ptr KCCUR -> Ptr CSize -> Int32 -> IO CString
 
--- char *kccurget (KCCUR *cur, size_t *ksp, const char **vbp, size_t *vsp, int32_t step)
+hccurget :: Ptr KCCUR -> Bool -> IO (ByteString, ByteString)
+hccurget cur s =
+  alloca $ \klenptr ->
+  alloca $ \vstrptr ->
+  alloca $ \vlenptr ->
+  do kstr <- kccurget' cur klenptr vstrptr vlenptr (boolToInt s)
+     klen <- peek klenptr
+     vstr <- peek vstrptr
+     vlen <- peek vlenptr
+     k <- BS.unsafePackCStringLen (kstr, fi klen)
+     v <- BS.unsafePackCStringLen (vstr, fi vlen)
+     return (k, v)
+foreign import ccall "kclangc.h kccurget"
+  kccurget' :: Ptr KCCUR -> Ptr CSize -> Ptr CString -> Ptr CSize -> Int32 -> IO CString
 
 -- char *kccurseize (KCCUR *cur, size_t *ksp, const char **vbp, size_t *vsp)
 
