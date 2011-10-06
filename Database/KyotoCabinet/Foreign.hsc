@@ -385,17 +385,35 @@ foreign import ccall "kclangc.h kcdbmerge"
 
 -------------------------------------------------------------------------------
 
+kcdbcursor :: Ptr KCDB -> IO (Ptr KCCUR)
+kcdbcursor db =
+  do cur <- kcdbcursor' db
+     if cur == nullPtr then
+       error "Database.KyotoCabinet.Foreign.kcdbcursor: kcdbcursor() returned NULL"
+       else return cur
 foreign import ccall "kclangc.h kcdbcursor"
-  kcdbcursor :: Ptr KCDB -> Ptr KCCUR
+  kcdbcursor' :: Ptr KCDB -> IO (Ptr KCCUR)
 
+foreign import ccall "kclangc.h kccurdel"
+  kcdbcurdel :: Ptr KCCUR -> IO ()
 
--- void kccurdel (KCCUR *cur)
+kccuraccept :: Ptr KCCUR -> VisitorFull -> Bool -> Bool -> IO ()
+kccuraccept cur vf w s =
+  do vfptr <- mkVisitorFull vf
+     kccuraccept' cur vfptr nullPtr (boolToInt w) (boolToInt s) >>= handleBoolResultC cur "kccuraccept"
+foreign import ccall "kclangc.h kccuraccept"
+  kccuraccept' :: Ptr KCCUR -> KCVISITFULL -> Ptr () -> Int32 -> Int32 -> IO (Int32)
 
--- int32_t kccuraccept (KCCUR *cur, KCVISITFULL fullproc, void *opq, int32_t writable, int32_t step)
+kccursetvalue :: Ptr KCCUR -> ByteString -> Bool -> IO ()
+kccursetvalue cur v s = BS.unsafeUseAsCStringLen v $ \(cstr, len) ->
+                        kccursetvalue' cur cstr (fi len) (boolToInt s) >>= handleBoolResultC cur "kccursetvalue"
+foreign import ccall "kclangc.h kccursetvalue"
+  kccursetvalue' :: Ptr KCCUR -> CString -> CSize -> Int32 -> IO Int32
 
--- int32_t kccursetvalue (KCCUR *cur, const char *vbuf, size_t vsiz, int32_t step)
-
--- int32_t kccurremove (KCCUR *cur)
+kccurremove :: Ptr KCCUR -> IO ()
+kccurremove cur = kccurremove' cur >>= handleBoolResultC cur "kccurremove"
+foreign import ccall "kclangc.h kccurremove"
+  kccurremove' :: Ptr KCCUR -> IO Int32
 
 -- char *kccurgetkey (KCCUR *cur, size_t *sp, int32_t step)
 
@@ -417,7 +435,8 @@ foreign import ccall "kclangc.h kcdbcursor"
 
 -- int32_t kccurstepback (KCCUR *cur)
 
--- KCDB * kccurdb (KCCUR *cur)
+foreign import ccall "kclangc.h kccurdb"
+  kccurdb :: Ptr KCCUR -> IO (Ptr KCDB)
 
 -- int32_t kccurecode (KCCUR *cur)
 
@@ -466,6 +485,10 @@ handleBoolResult db fun status | status == 0 = throwKCException db fun
 handleCountResult :: Ptr KCDB -> String -> Int64 -> IO Int64
 handleCountResult db fun count | count == -1 = throwKCException db fun
                                | otherwise  = return count
+
+handleBoolResultC :: Ptr KCCUR -> String -> Int32 -> IO ()
+handleBoolResultC cur fun status | status == 0 = kccurdb cur >>= flip throwKCException fun
+                                 | otherwise  = return ()
 
 
 ---------------------------------------------------------------------
