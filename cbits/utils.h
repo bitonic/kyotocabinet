@@ -1,4 +1,4 @@
 
-const char *_KCVISNOP ();
+const char *_KCVISNOP (void);
 
-const char *_KCVISREMOVE ();
+const char *_KCVISREMOVE (void);

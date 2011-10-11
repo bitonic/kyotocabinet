@@ -21,8 +21,9 @@ Library
                       , cereal
                       , bytestring
   GHC-Options:          -Wall
-  Exposed-Modules:      Database.KyotoCabinet
+  Exposed-Modules:      Database.KyotoCabinet.DB
   Other-Modules:        Database.KyotoCabinet.Foreign
+                      , Database.KyotoCabinet.Internal
   Extra-Libraries:      kyotocabinet
   Include-Dirs:         cbits
   Includes:             cbits/utils.h
