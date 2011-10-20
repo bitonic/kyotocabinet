@@ -1,6 +1,12 @@
 module Database.KyotoCabinet.Internal
        ( -- * DB Classes
          DB (..)
+       , WithDB (..)
+
+         -- Creation
+       , makeVolatile
+       , makePersistent
+       , openPersistent
 
          -- * Logging options
        , LoggingOptions (..)
@@ -22,15 +28,45 @@ module Database.KyotoCabinet.Internal
 import Data.Int (Int64, Int8)
 import Data.List (intercalate)
 import Data.Maybe (maybeToList)
-import Foreign.ForeignPtr (ForeignPtr)
+import Foreign.ForeignPtr (ForeignPtr, newForeignPtr)
+import Foreign.Ptr (Ptr)
 
 import Prelude hiding (log)
 
-import Database.KyotoCabinet.Foreign (KCDB)
+import Database.KyotoCabinet.Foreign
 
 -------------------------------------------------------------------------------
 
 newtype DB = DB {unDB :: ForeignPtr KCDB}
+
+class WithDB db where
+  getDB :: db -> DB
+
+-------------------------------------------------------------------------------
+
+newDB :: Ptr KCDB -> IO DB
+newDB kcdb = fmap DB (newForeignPtr kcdbdel kcdb)
+
+makeVolatile :: (DB -> a) -> (opts -> [TuningOption]) -> String
+                -> LoggingOptions -> opts -> Mode -> IO a
+makeVolatile constr optsconv class' log opts mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName Nothing class' log (optsconv opts)) mode
+     fmap constr $ newDB kcdb
+
+makePersistent :: (DB -> a) -> (opts -> [TuningOption]) -> String
+                -> FilePath -> LoggingOptions -> opts -> Mode -> IO a
+makePersistent constr optsconv class' fn log opts mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName (Just fn) class' log (optsconv opts)) mode
+     fmap constr $ newDB kcdb
+
+openPersistent :: (DB -> a) -> String
+                -> FilePath -> LoggingOptions -> Mode -> IO a
+openPersistent constr class' fn log mode =
+  do kcdb <- kcdbnew
+     kcdbopen kcdb (formatName (Just fn) class' log []) mode
+     fmap constr $ newDB kcdb
 
 -------------------------------------------------------------------------------
 
@@ -109,9 +145,11 @@ data TuningOption = Options Options
                     --   updates.
                     --
                     --   Available on 'Hash', and 'Tree'.
+                  deriving (Show, Read, Eq, Ord)
 
 -- | General tuning options
 data Options = Compress -- ^ Enable compression of the keys and the values
+             deriving (Show, Read, Eq, Ord)
 
 -- | Compression algorithm used. 'DEFLATE' is the default one.
 data Compressor = Zlib    -- ^ The raw zlib compressor
@@ -120,9 +158,11 @@ data Compressor = Zlib    -- ^ The raw zlib compressor
                 | LZO     -- ^ LZO compressor
                 | LZMA    -- ^ LZMA compressor
                 | Arc     -- ^ Arcfour cipher
+                deriving (Show, Read, Eq, Ord)
 
 -- | Comparator used in the tree. 'Lexical' by default.
 data Comparator = Lexical | Decimal
+                deriving (Show, Read, Eq, Ord)
 
 getKeyValue :: TuningOption -> (String, String)
 getKeyValue (Options Compress) = ("opts", "c")

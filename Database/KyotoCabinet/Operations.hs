@@ -1,5 +1,5 @@
 {-# Language ExistentialQuantification #-}
-module Database.KyotoCabinet.DB
+module Database.KyotoCabinet.Operations
        ( -- * Logging options
          LoggingOptions (..)
        , LogFile (..)
@@ -84,15 +84,10 @@ import Data.Int (Int64)
 import Foreign.ForeignPtr (ForeignPtr, newForeignPtr, withForeignPtr)
 import Foreign.Ptr (Ptr)
 
-import Prelude hiding (iterate)
+import Prelude hiding (iterate, log)
 
 import Database.KyotoCabinet.Internal 
 import Database.KyotoCabinet.Foreign
-
--------------------------------------------------------------------------------
-
-class WithDB db where
-  getDB :: db -> DB
 
 -------------------------------------------------------------------------------
 
