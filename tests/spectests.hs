@@ -1,6 +1,6 @@
 {-# Language OverloadedStrings #-}
 
-import Database.KyotoCabinet
+import Database.KyotoCabinet.DB.Hash
 import Data.ByteString.Char8 ()
 
 import Prelude hiding (iterate)

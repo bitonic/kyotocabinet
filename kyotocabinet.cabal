@@ -21,19 +21,19 @@ Library
                       , cereal
                       , bytestring
   GHC-Options:          -Wall
-  Exposed-Modules:      Database.KyotoCabinet.ProtoHash
-                      , Database.KyotoCabinet.ProtoTree
-                      , Database.KyotoCabinet.Stash
-                      , Database.KyotoCabinet.CacheHash
-                      , Database.KyotoCabinet.CacheTree
-                      , Database.KyotoCabinet.Hash
-                      , Database.KyotoCabinet.Tree
-                      , Database.KyotoCabinet.Dir
-                      , Database.KyotoCabinet.Forest
-                      , Database.KyotoCabinet.Text
+  Exposed-Modules:      Database.KyotoCabinet.Operations
+                      , Database.KyotoCabinet.DB.ProtoHash
+                      , Database.KyotoCabinet.DB.ProtoTree
+                      , Database.KyotoCabinet.DB.Stash
+                      , Database.KyotoCabinet.DB.CacheHash
+                      , Database.KyotoCabinet.DB.CacheTree
+                      , Database.KyotoCabinet.DB.Hash
+                      , Database.KyotoCabinet.DB.Tree
+                      , Database.KyotoCabinet.DB.Dir
+                      , Database.KyotoCabinet.DB.Forest
+                      , Database.KyotoCabinet.DB.Text
   Other-Modules:        Database.KyotoCabinet.Foreign
                       , Database.KyotoCabinet.Internal
-                      , Database.KyotoCabinet.Operations
   Extra-Libraries:      kyotocabinet
   Include-Dirs:         cbits
   Includes:             cbits/utils.h

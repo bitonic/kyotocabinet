@@ -116,7 +116,6 @@ close = withFor0 unDB kcdbclose . getDB
 
 -------------------------------------------------------------------------------
 
-
 type Writable = Bool
 
 -- | Executes the 'VisitorFull' on the existent records, and 'VisitorEmpty' on the missing ones.
