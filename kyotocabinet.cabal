@@ -8,7 +8,7 @@ License:                BSD3
 Build-Type:             Simple
 Category:               Database
 Synopsis:               Mid level bindings to Kyoto Cabinet
-Tested-With:            GHC==7.0.3
+Tested-With:            GHC==7.2.2
 Description:
   Mid level bindings to Kyoto Cabinet, plus some wrappers data type for ease of use.
 
