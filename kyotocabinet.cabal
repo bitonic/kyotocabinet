@@ -1,6 +1,6 @@
 Cabal-Version:          >= 1.6
 Name:                   kyotocabinet
-Version:                0.1
+Version:                0.1.1
 Author:                 Francesco Mazzoli (f@mazzo.li)
 Maintainer:             Francesco Mazzoli (f@mazzo.li)
 Build-Type:             Simple
@@ -14,7 +14,7 @@ Description:
 
 source-repository head
   type:                 git
-  location:             git://github.com/rostayob/kyotocabinet.git
+  location:             git://github.com/bitonic/kyotocabinet.git
 
 Library
   Build-Depends:        base >= 4 && <5
