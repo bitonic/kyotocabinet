@@ -13,7 +13,7 @@ import Foreign.C.String (CString, withCString, peekCString, withCString)
 import Foreign.C.Types (CSize(..), CInt)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArrayLen, peekArray, allocaArray)
-import Foreign.Ptr (Ptr, nullPtr, FunPtr)
+import Foreign.Ptr (Ptr, nullPtr, FunPtr, castPtr)
 import Foreign.Storable (Storable (..))
 
 #include <kclangc.h>
@@ -172,7 +172,9 @@ getFun f db k =
   alloca $ \vlenptr ->
   do vptr <- f db kptr (fi klen) vlenptr
      if vptr == nullPtr then return Nothing
-       else peek vlenptr >>= \vlen -> fmap Just $ BS.unsafePackCStringLen (vptr, fi vlen)
+       else peek vlenptr >>= \vlen -> fmap Just $ BS.unsafePackCStringFinalizer (castPtr vptr) (fi vlen) (kcfree vptr)
+foreign import ccall "kclangc.h kcfree"
+  kcfree :: Ptr a -> IO ()
 
 -------------------------------------------------------------------------------
 
