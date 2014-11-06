@@ -10,7 +10,7 @@ import qualified Data.ByteString.Unsafe as BS
 import Data.Data (Typeable)
 import Data.Int (Int32, Int64)
 import Foreign.C.String (CString, withCString, peekCString, withCString)
-import Foreign.C.Types (CSize, CInt)
+import Foreign.C.Types (CSize(..), CInt)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArrayLen, peekArray, allocaArray)
 import Foreign.Ptr (Ptr, nullPtr, FunPtr)
