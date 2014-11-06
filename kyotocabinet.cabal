@@ -1,6 +1,6 @@
 Cabal-Version:          >= 1.6
 Name:                   kyotocabinet
-Version:                0.1.1
+Version:                0.1.2
 Author:                 Francesco Mazzoli (f@mazzo.li)
 Maintainer:             Francesco Mazzoli (f@mazzo.li)
 Build-Type:             Simple
@@ -9,6 +9,7 @@ Build-Type:             Simple
 Category:               Database
 Synopsis:               Mid level bindings to Kyoto Cabinet
 Tested-With:            GHC==7.2.2
+Extra-Source-Files:     cbits/utils.h
 Description:
   Mid level bindings to Kyoto Cabinet, plus some wrappers data type for ease of use.
 
