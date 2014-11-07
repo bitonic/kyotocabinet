@@ -361,6 +361,7 @@ kcdbpath db =
   do cstr <- kcdbpath' db
      if cstr == nullPtr then error "Database.KyotoCabinet.Foreign.kcdbpath: kcdbpath() returned NULL"
        else do path <- peekCString cstr
+               kcfree cstr
                if null path then throwKCException db "kcdbpath"
                  else return path
 foreign import ccall "kclangc.h kcdbpath"

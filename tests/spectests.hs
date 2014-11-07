@@ -52,11 +52,22 @@ test3 = do
 
   close db
 
+test4 :: IO ()
+test4 = do
+  db <- openHash "/tmp/casket.kch" defaultLoggingOptions (Reader [])
+
+  filePath <- path db
+  unless (filePath == "/tmp/casket.kch") $
+    error ("test2: " ++ show filePath)
+
+  close db
+
 main :: IO ()
 main = putStrLn "----------------------" >> test1 >> putStrLn "\n" >>
        putStrLn "----------------------" >> test2 >> putStrLn "\n" >>
 
        -- 100 times to let valgrind catch memory leaks
        putStrLn "----------------------" >> replicateM_ 100 test3 >> putStrLn "\n" >>
+       putStrLn "----------------------" >> replicateM_ 100 test4 >> putStrLn "\n" >>
 
        return ()
