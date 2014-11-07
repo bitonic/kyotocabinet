@@ -60,6 +60,21 @@ test4 = do
   unless (filePath == "/tmp/casket.kch") $
     error ("test2: " ++ show filePath)
 
+  void $ status db
+
+  close db
+
+test5 :: IO ()
+test5 = do
+  db <- openHash "/tmp/casket.kch" defaultLoggingOptions (Writer [] [])
+
+  cur <- cursor db
+  curJump cur
+  void $ curGetKey cur False
+  void $ curGetValue cur False
+  void $ curGet cur False
+  curSeize cur >>= \(k, v) -> set db k v
+
   close db
 
 main :: IO ()
@@ -69,5 +84,6 @@ main = putStrLn "----------------------" >> test1 >> putStrLn "\n" >>
        -- 100 times to let valgrind catch memory leaks
        putStrLn "----------------------" >> replicateM_ 100 test3 >> putStrLn "\n" >>
        putStrLn "----------------------" >> replicateM_ 100 test4 >> putStrLn "\n" >>
+       putStrLn "----------------------" >> replicateM_ 100 test5 >> putStrLn "\n" >>
 
        return ()

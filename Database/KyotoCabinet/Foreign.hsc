@@ -1,10 +1,11 @@
 {-# Language ForeignFunctionInterface, EmptyDataDecls, DeriveDataTypeable #-}
 module Database.KyotoCabinet.Foreign where
 
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>), (<*>), (<*))
 import Control.Exception (Exception, throwIO)
 import Data.Bits ((.|.))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Unsafe as BS
 import Data.Data (Typeable)
 import Data.Int (Int32, Int64)
@@ -371,7 +372,7 @@ kcdbstatus :: Ptr KCDB -> IO String
 kcdbstatus db =
   do cstr <- kcdbstatus' db
      if cstr == nullPtr then throwKCException db "kcdbstatus"
-       else peekCString cstr
+       else peekCString cstr <* kcfree cstr
 foreign import ccall "kclangc.h kcdbstatus"
   kcdbstatus' :: Ptr KCDB -> IO CString
 
@@ -422,7 +423,7 @@ kccurgetkey cur s =
   alloca $ \lenptr ->
   do cstr <- kccurgetkey' cur lenptr (boolToInt s) >>= handlePtrResultC cur "kccurgetkey"
      len <- peek lenptr
-     BS.unsafePackCStringLen (cstr, fi len)
+     unsafePackKCSTR (KCSTR (cstr, len))
 foreign import ccall "kclangc.h kccurgetkey"
   kccurgetkey' :: Ptr KCCUR -> Ptr CSize -> Int32 -> IO CString
 
@@ -431,7 +432,7 @@ kccurgetvalue cur s =
   alloca $ \lenptr ->
   do cstr <- kccurgetvalue' cur lenptr (boolToInt s) >>= handlePtrResultC cur "kccurget"
      len <- peek lenptr
-     BS.unsafePackCStringLen (cstr, fi len)
+     unsafePackKCSTR (KCSTR (cstr, len))
 foreign import ccall "kclangc.h kccurgetvalue"
   kccurgetvalue' :: Ptr KCCUR -> Ptr CSize -> Int32 -> IO CString
 
@@ -444,8 +445,10 @@ kccurget cur s =
      klen <- peek klenptr
      vstr <- peek vstrptr
      vlen <- peek vlenptr
-     k <- BS.unsafePackCStringLen (kstr, fi klen)
-     v <- BS.unsafePackCStringLen (vstr, fi vlen)
+     -- looks like the function allocates one buffer both for key and value, so only
+     -- pointer to key should be freed.
+     k <- unsafePackKCSTR (KCSTR (kstr, klen))
+     v <- BS.packCStringLen (vstr, fi vlen)
      return (k, v)
 foreign import ccall "kclangc.h kccurget"
   kccurget' :: Ptr KCCUR -> Ptr CSize -> Ptr CString -> Ptr CSize -> Int32 -> IO CString
@@ -459,8 +462,10 @@ kccurseize cur =
      klen <- peek klenptr
      vstr <- peek vstrptr
      vlen <- peek vlenptr
-     k <- BS.unsafePackCStringLen (kstr, fi klen)
-     v <- BS.unsafePackCStringLen (vstr, fi vlen)
+     -- looks like the function allocates one buffer both for key and value, so only
+     -- pointer to key should be freed.
+     k <- unsafePackKCSTR (KCSTR (kstr, klen))
+     v <- BS.packCStringLen (vstr, fi vlen)
      return (k, v)
 foreign import ccall "kclangc.h kccurseize"
   kccurseize' :: Ptr KCCUR -> Ptr CSize -> Ptr CString -> Ptr CSize -> IO CString
