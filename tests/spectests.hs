@@ -3,6 +3,7 @@
 import Database.KyotoCabinet.DB.Hash
 import Database.KyotoCabinet.Operations
 import Data.ByteString.Char8 ()
+import Control.Monad
 
 import Prelude hiding (iterate)
 
@@ -39,7 +40,23 @@ test2 = do
 
   close db
 
+test3 :: IO ()
+test3 = do
+  db <- openHash "/tmp/casket.kch" defaultLoggingOptions (Reader [])
+
+  res <- getBulk db ["foo", "bar", "baz"] False
+  unless (lookup "foo" res == Just "hop"
+       && lookup "bar" res == Just "step"
+       && lookup "baz" res == Just "jump") $
+    error ("test2: " ++ show res)
+
+  close db
+
 main :: IO ()
 main = putStrLn "----------------------" >> test1 >> putStrLn "\n" >>
        putStrLn "----------------------" >> test2 >> putStrLn "\n" >>
+
+       -- 100 times to let valgrind catch memory leaks
+       putStrLn "----------------------" >> replicateM_ 100 test3 >> putStrLn "\n" >>
+
        return ()

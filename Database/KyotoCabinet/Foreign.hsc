@@ -1,7 +1,6 @@
 {-# Language ForeignFunctionInterface, EmptyDataDecls, DeriveDataTypeable #-}
 module Database.KyotoCabinet.Foreign where
 
-import Control.Arrow (second)
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception (Exception, throwIO)
 import Data.Bits ((.|.))
@@ -59,7 +58,9 @@ instance Storable KCSTR where
     do arr <- #{peek KCSTR, buf} ptr
        size <- #{peek KCSTR, size} ptr
        return $ KCSTR (arr, size)
-  poke _ _ = error "Database.KyotoCabinet.Foreign.KCSTR.poke not implemented"
+  poke ptr (KCSTR (buf, size)) =
+    do #{poke KCSTR, buf}  ptr buf
+       #{poke KCSTR, size} ptr size
 
 withKCSTR :: ByteString -> (KCSTR -> IO a) -> IO a
 withKCSTR bs f = BS.unsafeUseAsCStringLen bs $ \(ptr, len) -> f (KCSTR (ptr, (fi len)))
@@ -91,13 +92,16 @@ instance Storable KCREC where
   sizeOf _ = #{size KCREC}
   alignment _ = alignment (undefined :: CInt)
   peek ptr =
-    do k <- #{peek KCREC, key} ptr >>= BS.unsafePackCStringLen . second fi . unKCSTR
-       v <- #{peek KCREC, value} ptr >>= BS.unsafePackCStringLen . second fi . unKCSTR
+    do k <- #{peek KCREC, key} ptr >>= unsafePackKCSTR
+       v <- #{peek KCREC, value} ptr >>= unsafePackKCSTR
        return $ KCREC (k, v)
   poke _ _ = error "Database.KyotoCabinet.Foreign.KCREC.poke not implemented"
 
 withKCRECArray :: [(ByteString, ByteString)] -> (CSize -> Ptr KCREC -> IO a) -> IO a
 withKCRECArray kvs f = withArrayLen (map KCREC kvs) (f . fi)
+
+unsafePackKCSTR :: KCSTR -> IO ByteString
+unsafePackKCSTR (KCSTR (buf, size)) = BS.unsafePackCStringFinalizer (castPtr buf) (fi size) (kcfree buf)
 
 -------------------------------------------------------------------------------
 
