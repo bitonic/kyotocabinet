@@ -132,6 +132,7 @@ acceptBulk = withFor4 (unDB . getDB) kcdbacceptbulk
 iterate :: WithDB db => db -> VisitorFull -> Writable -> IO ()
 iterate = withFor2 (unDB . getDB) kcdbiterate
 
+-- | Scan each record in parallel
 scanPara :: WithDB db => db -> VisitorFull -> Int -> IO ()
 scanPara = withFor2 (unDB . getDB) kcdbscanpara
 
@@ -168,6 +169,7 @@ remove = withFor1 (unDB . getDB) kcdbremove
 removeBulk :: WithDB db => db -> [ByteString] -> Bool -> IO Int64
 removeBulk = withFor2 (unDB . getDB) kcdbremovebulk
 
+-- | Retrieve the value of a record and remove it atomically
 seize :: WithDB db => db -> ByteString -> IO (Maybe ByteString)
 seize = withFor1 (unDB . getDB) kcdbseize
 
@@ -193,6 +195,7 @@ count = withFor0 (unDB . getDB) kcdbcount
 size :: WithDB db => db -> IO Int64
 size = withFor0 (unDB . getDB) kcdbsize
 
+-- | Get the path of the database file
 path :: WithDB db => db -> IO String
 path = withFor0 (unDB . getDB) kcdbpath
 

@@ -37,9 +37,12 @@ import Database.KyotoCabinet.Foreign
 
 -------------------------------------------------------------------------------
 
+-- | Polymorphic database
 newtype DB = DB {unDB :: ForeignPtr KCDB}
 
+-- | A thing that has database
 class WithDB db where
+  -- | Access database
   getDB :: db -> DB
 
 -------------------------------------------------------------------------------
