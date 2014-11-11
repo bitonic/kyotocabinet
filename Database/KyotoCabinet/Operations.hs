@@ -15,6 +15,10 @@ module Database.KyotoCabinet.Operations
        , KCException (..)
        , KCError (..)
 
+         -- * Type class
+       , WithDB(..)
+       , DB
+
          -- * Operations
          -- ** Closing
        , close
