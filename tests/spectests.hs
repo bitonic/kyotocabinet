@@ -48,7 +48,7 @@ test3 = do
   unless (lookup "foo" res == Just "hop"
        && lookup "bar" res == Just "step"
        && lookup "baz" res == Just "jump") $
-    error ("test2: " ++ show res)
+    error ("test3: " ++ show res)
 
   close db
 
@@ -58,7 +58,7 @@ test4 = do
 
   filePath <- path db
   unless (filePath == "/tmp/casket.kch") $
-    error ("test2: " ++ show filePath)
+    error ("test4: " ++ show filePath)
 
   void $ status db
 
@@ -77,6 +77,18 @@ test5 = do
 
   close db
 
+test6 :: IO ()
+test6 = do
+  db <- openHash "/tmp/casket.kch" defaultLoggingOptions (Writer [] [])
+
+  setBulk db [("a", "b"), ("c", "d")] False
+  res <- getBulk db ["a", "c"] False
+  unless (lookup "a" res == Just "b"
+       && lookup "c" res == Just "d") $
+    error ("test6: " ++ show res)
+
+  close db
+
 main :: IO ()
 main = putStrLn "----------------------" >> test1 >> putStrLn "\n" >>
        putStrLn "----------------------" >> test2 >> putStrLn "\n" >>
@@ -85,5 +97,7 @@ main = putStrLn "----------------------" >> test1 >> putStrLn "\n" >>
        putStrLn "----------------------" >> replicateM_ 100 test3 >> putStrLn "\n" >>
        putStrLn "----------------------" >> replicateM_ 100 test4 >> putStrLn "\n" >>
        putStrLn "----------------------" >> replicateM_ 100 test5 >> putStrLn "\n" >>
+
+       putStrLn "----------------------" >> test6 >> putStrLn "\n" >>
 
        return ()

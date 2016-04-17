@@ -98,8 +98,24 @@ instance Storable KCREC where
        return $ KCREC (k, v)
   poke _ _ = error "Database.KyotoCabinet.Foreign.KCREC.poke not implemented"
 
-withKCRECArray :: [(ByteString, ByteString)] -> (CSize -> Ptr KCREC -> IO a) -> IO a
-withKCRECArray kvs f = withArrayLen (map KCREC kvs) (f . fi)
+newtype KCREC_ = KCREC_ {unKCREC_ :: (KCSTR, KCSTR)}
+
+instance Storable KCREC_ where
+  sizeOf _ = #{size KCREC}
+  alignment _ = alignment (undefined :: CInt)
+  peek _ = error "Database.KyotoCabinet.Foreign.KCREC_.peek not implemented"
+  poke ptr (KCREC_ (k, v)) = do
+    #{poke KCREC, key} ptr k
+    #{poke KCREC, value} ptr v
+
+withKCRECArray :: [(ByteString, ByteString)] -> (CSize -> Ptr KCREC_ -> IO a) -> IO a
+withKCRECArray kvs f = go kvs []
+  where
+  go [] kckvs = withArrayLen kckvs (f . fi)
+  go ((k, v) : kvs') kckvs =
+    withKCSTR k $ \key ->
+      withKCSTR v $ \val ->
+        go kvs' (KCREC_ (key, val) : kckvs)
 
 unsafePackKCSTR :: KCSTR -> IO ByteString
 unsafePackKCSTR (KCSTR (buf, size)) = BS.unsafePackCStringFinalizer (castPtr buf) (fi size) (kcfree buf)
@@ -297,7 +313,7 @@ kcdbsetbulk db kvs atomic =
   withKCRECArray kvs $ \len kcrecptr ->
   kcdbsetbulk' db kcrecptr len (boolToInt atomic) >>= handleCountResult db "kcdbsetbulk"
 foreign import ccall "kclangc.h kcdbsetbulk"
-  kcdbsetbulk' :: Ptr KCDB -> Ptr KCREC -> CSize -> Int32 -> IO Int64
+  kcdbsetbulk' :: Ptr KCDB -> Ptr KCREC_ -> CSize -> Int32 -> IO Int64
 
 kcdbremovebulk :: Ptr KCDB -> [ByteString] -> Bool -> IO Int64
 kcdbremovebulk db ks atomic =
